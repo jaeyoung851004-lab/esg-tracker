@@ -47,7 +47,6 @@ export default async function RegulationsPage() {
             </p>
           </div>
 
-          {/* 검색/필터 */}
           <div className="flex gap-3">
             <div className="flex max-w-sm flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
               <span className="text-sm text-slate-400">🔍</span>
@@ -75,7 +74,6 @@ export default async function RegulationsPage() {
             </select>
           </div>
 
-          {/* 규제 카드 그리드 */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {regulations.map((reg) => (
               <a
@@ -83,7 +81,6 @@ export default async function RegulationsPage() {
                 href={`/regulations/${reg.id}`}
                 className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emeraldBrand hover:shadow-md"
               >
-                {/* 상단 */}
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <span
                     className={`rounded px-2 py-1 text-xs font-black text-white ${
@@ -103,14 +100,12 @@ export default async function RegulationsPage() {
                   </span>
                 </div>
 
-                {/* 규제명 */}
                 <h3 className="mb-1 text-sm font-bold leading-snug text-navy group-hover:text-emeraldBrand">
                   {reg.title}
                 </h3>
 
                 <p className="mb-3 text-xs text-slate-400">{reg.name_en}</p>
 
-                {/* 카테고리 */}
                 <div className="mt-auto flex items-center justify-between">
                   <span className="text-xs text-slate-400">
                     {reg.category}
