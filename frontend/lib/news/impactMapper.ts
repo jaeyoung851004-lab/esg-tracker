@@ -2,7 +2,7 @@
  * impactMapper.ts
  * 규제의 affectedCriteria → targetRegions (Google News 로케일) 자동 생성
  */
-import countryProfiles from "@/data/countryProfiles.json";
+import countryProfiles from "../../../data/countryProfiles.json";
 
 export interface AffectedCriteria {
   coreMarket?: string[];          // 규제 직접 적용 지역 ["EU", "US", "KR"]
