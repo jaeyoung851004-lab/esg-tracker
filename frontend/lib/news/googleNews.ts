@@ -1,214 +1,417 @@
-/**
- * googleNews.ts
- * targetRegions 기반으로 Google News RSS 다중 호출
- * Next.js API Route / Server Component 양쪽에서 사용 가능
- */
-import type { GoogleLocale } from "./impactMapper";
+import Parser from "rss-parser";
 
-export interface NewsItem {
-  id: string;
-  title: string;
+const parser = new Parser();
+
+export type RegulationId =
+  | "csrd"
+  | "cbam"
+  | "csddd"
+  | "espr"
+  | "eudr"
+  | "ai-act"
+  | "issb"
+  | "sec-climate"
+  | "battery";
+
+export type NewsItem = {
+  titleKo: string;
+  originalTitle: string;
   source: string;
-  sourceKo: string;
-  country: string;
-  locale: string;
+  sourceCountryKo: string;
+  publishedAt: string;
   url: string;
-  date: string;
-  age: string;
-  summary: string;
-  newsType: "규제 변화" | "기업 대응" | "산업 반응" | "시장 동향";
-  sourceType: "공식" | "로펌" | "NGO" | "언론" | "산업";
-}
-
-// ── 출처 한국어 매핑 ────────────────────────────────
-const PUBLISHER_KO: Record<string, string> = {
-  "reuters": "로이터",
-  "financial times": "파이낸셜타임스(FT)",
-  "bloomberg": "블룸버그",
-  "wall street journal": "월스트리트저널",
-  "euractiv": "유로액티브",
-  "carbon brief": "카본브리프",
-  "esg today": "ESG투데이",
-  "esg news": "ESG뉴스",
-  "responsible investor": "리스폰서블 인베스터",
-  "businessgreen": "비즈니스그린",
-  "packaging europe": "패키징 유럽",
-  "packaging dive": "패키징 다이브",
-  "trellis": "트렐리스",
-  "european commission": "유럽위원회",
-  "council of the eu": "EU 이사회",
-  "eur-lex": "EU 관보(EUR-Lex)",
-  "european parliament": "유럽의회",
-  "efrag": "EFRAG",
-  "deloitte": "딜로이트",
-  "kpmg": "KPMG",
-  "pwc": "PwC",
-  "ey": "EY",
-  "latham": "레이섬앤왓킨스",
-  "white & case": "화이트앤케이스",
-  "jd supra": "JD수프라",
-  "lexology": "렉솔로지",
-  "wwf": "WWF",
-  "greenpeace": "그린피스",
-  "cdp": "CDP",
-  "handelsblatt": "한델스블라트",
-  "les echos": "레제코",
-  "nikkei": "닛케이",
-  "korea herald": "코리아헤럴드",
-  "korea times": "코리아타임스",
+  regulationId: RegulationId;
+  regulationName: string;
+  stakeholderType: string;
+  reactionType: string;
+  countryKo: string;
+  relevanceScore: number;
 };
 
-const SOURCE_TYPE_RULES: Record<string, string[]> = {
-  "공식": ["european commission","council of the eu","eur-lex","european parliament","efrag","official journal"],
-  "로펌": ["latham","white & case","dla piper","clifford chance","baker mckenzie","jd supra","lexology","linklaters"],
-  "NGO":  ["wwf","greenpeace","zero waste","cdp","somo"],
-  "언론": ["reuters","bloomberg","financial times","euractiv","carbon brief","businessgreen","esg today","esg news","trellis","handelsblatt","les echos","nikkei"],
+export const REGULATIONS: Record<
+  RegulationId,
+  { name: string; queries: string[] }
+> = {
+  csrd: {
+    name: "CSRD",
+    queries: [
+      `"CSRD"`,
+      `"Corporate Sustainability Reporting Directive"`,
+      `"CSRD" company response`,
+      `"CSRD" audit assurance`,
+      `"CSRD" delay`,
+      `"CSRD" global companies`,
+    ],
+  },
+  cbam: {
+    name: "CBAM",
+    queries: [
+      `"CBAM"`,
+      `"Carbon Border Adjustment Mechanism"`,
+      `"CBAM" exporters`,
+      `"CBAM" steel cement aluminum`,
+      `"CBAM" reporting obligation`,
+    ],
+  },
+  csddd: {
+    name: "CSDDD",
+    queries: [
+      `"CSDDD"`,
+      `"Corporate Sustainability Due Diligence Directive"`,
+      `"EU due diligence directive"`,
+      `"CSDDD" supply chain`,
+      `"CSDDD" delay`,
+    ],
+  },
+  espr: {
+    name: "ESPR",
+    queries: [
+      `"ESPR"`,
+      `"Ecodesign for Sustainable Products Regulation"`,
+      `"digital product passport"`,
+      `"ESPR" textiles`,
+    ],
+  },
+  eudr: {
+    name: "EUDR",
+    queries: [
+      `"EUDR"`,
+      `"EU Deforestation Regulation"`,
+      `"EUDR" delay`,
+      `"EUDR" compliance`,
+      `"EUDR" coffee cocoa palm oil`,
+    ],
+  },
+  "ai-act": {
+    name: "EU AI Act",
+    queries: [
+      `"EU AI Act"`,
+      `"Artificial Intelligence Act" Europe`,
+      `"AI Act" compliance`,
+      `"AI Act" companies`,
+    ],
+  },
+  issb: {
+    name: "ISSB",
+    queries: [
+      `"ISSB" sustainability disclosure`,
+      `"IFRS S1"`,
+      `"IFRS S2"`,
+      `"ISSB" climate disclosure`,
+    ],
+  },
+  "sec-climate": {
+    name: "SEC Climate Rule",
+    queries: [
+      `"SEC climate disclosure rule"`,
+      `"SEC climate rule"`,
+      `"SEC" climate disclosure`,
+      `"climate disclosure rule" companies`,
+    ],
+  },
+  battery: {
+    name: "EU Battery Regulation",
+    queries: [
+      `"EU Battery Regulation"`,
+      `"battery passport" EU`,
+      `"Battery Regulation" due diligence`,
+      `"EU battery rules"`,
+    ],
+  },
 };
 
-const NEWS_TYPE_KEYWORDS: Record<string, string[]> = {
-  "규제 변화": ["regulation","directive","legislation","adopted","published","amendment","omnibus","postponed","delayed","withdrawn","proposal","entry into force","delegated act"],
-  "기업 대응": ["company","corporate","manufacturer","invest","comply","compliance","implement","strategy","report","disclose","supply chain","prepare"],
-  "산업 반응": ["industry","sector","association","lobby","push back","concern","burden","cost","opposition","trade","federation","oppose","warns"],
-  "시장 동향": ["market","technology","solution","platform","startup","innovation","data","digital","traceability","dpp","esg rating","investment"],
-};
+const NOISE_KEYWORDS = [
+  "annual report",
+  "sustainability report now available",
+  "award",
+  "premio",
+  "webinar",
+  "internship",
+  "job",
+  "career",
+  "stock",
+  "share price",
+  "earnings",
+  "tradingview",
+  "sponsored",
+];
 
-const CUTOFF_DAYS = 60;
+function isNoiseNews(title: string): boolean {
+  const lower = title.toLowerCase();
+  return NOISE_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
 
-// ── 헬퍼 ─────────────────────────────────────────────
-function getPublisherKo(raw: string): string {
-  const rl = raw.toLowerCase();
-  for (const [k, v] of Object.entries(PUBLISHER_KO)) {
-    if (rl.includes(k)) return v;
+function classifyStakeholder(title: string): string {
+  const lower = title.toLowerCase();
+
+  if (
+    lower.includes("commission") ||
+    lower.includes("parliament") ||
+    lower.includes("council") ||
+    lower.includes("government") ||
+    lower.includes("ministry") ||
+    lower.includes("sec")
+  ) {
+    return "정부/규제기관";
   }
-  return raw.slice(0, 30);
-}
 
-function getSourceType(pub: string): NewsItem["sourceType"] {
-  const pl = pub.toLowerCase();
-  for (const [type, kws] of Object.entries(SOURCE_TYPE_RULES)) {
-    if (kws.some((k) => pl.includes(k))) return type as NewsItem["sourceType"];
+  if (
+    lower.includes("company") ||
+    lower.includes("corporate") ||
+    lower.includes("manufacturer") ||
+    lower.includes("supplier")
+  ) {
+    return "기업";
   }
-  return "산업";
-}
 
-function classifyNewsType(title: string, summary: string): NewsItem["newsType"] {
-  const text = `${title} ${summary}`.toLowerCase();
-  let best: NewsItem["newsType"] = "산업 반응";
-  let bestScore = 0;
-  for (const [type, kws] of Object.entries(NEWS_TYPE_KEYWORDS)) {
-    const score = kws.filter((k) => text.includes(k)).length;
-    if (score > bestScore) { bestScore = score; best = type as NewsItem["newsType"]; }
+  if (
+    lower.includes("investor") ||
+    lower.includes("bank") ||
+    lower.includes("asset manager") ||
+    lower.includes("finance")
+  ) {
+    return "금융/투자자";
   }
-  return best;
+
+  if (
+    lower.includes("law firm") ||
+    lower.includes("legal") ||
+    lower.includes("lawyer")
+  ) {
+    return "로펌";
+  }
+
+  if (
+    lower.includes("consulting") ||
+    lower.includes("deloitte") ||
+    lower.includes("pwc") ||
+    lower.includes("ey") ||
+    lower.includes("kpmg")
+  ) {
+    return "컨설팅/회계법인";
+  }
+
+  if (
+    lower.includes("ngo") ||
+    lower.includes("civil society") ||
+    lower.includes("campaign")
+  ) {
+    return "NGO/시민사회";
+  }
+
+  if (
+    lower.includes("association") ||
+    lower.includes("industry group") ||
+    lower.includes("trade body")
+  ) {
+    return "산업협회";
+  }
+
+  return "언론/시장";
 }
 
-function parseDate(raw: string): Date {
-  try { return new Date(raw); } catch { return new Date(0); }
+function classifyReactionType(title: string): string {
+  const lower = title.toLowerCase();
+
+  if (
+    lower.includes("delay") ||
+    lower.includes("postpone") ||
+    lower.includes("extension")
+  ) {
+    return "시행 지연 요구";
+  }
+
+  if (
+    lower.includes("cost") ||
+    lower.includes("burden") ||
+    lower.includes("expensive")
+  ) {
+    return "비용 부담";
+  }
+
+  if (
+    lower.includes("supply chain") ||
+    lower.includes("supplier") ||
+    lower.includes("exporter")
+  ) {
+    return "공급망 영향";
+  }
+
+  if (
+    lower.includes("legal") ||
+    lower.includes("guidance") ||
+    lower.includes("interpretation")
+  ) {
+    return "법률 해석";
+  }
+
+  if (
+    lower.includes("investor") ||
+    lower.includes("risk") ||
+    lower.includes("finance")
+  ) {
+    return "투자 리스크";
+  }
+
+  if (
+    lower.includes("comply") ||
+    lower.includes("compliance") ||
+    lower.includes("prepare") ||
+    lower.includes("response")
+  ) {
+    return "기업 대응";
+  }
+
+  if (
+    lower.includes("rule") ||
+    lower.includes("regulation") ||
+    lower.includes("directive") ||
+    lower.includes("law")
+  ) {
+    return "규제 변화";
+  }
+
+  return "시장 동향";
 }
 
-function formatAge(date: Date): string {
-  const diff = Math.floor((Date.now() - date.getTime()) / 86400000);
-  if (diff === 0) return "오늘";
-  if (diff === 1) return "1일 전";
-  if (diff < 7) return `${diff}일 전`;
-  if (diff < 14) return "1주 전";
-  if (diff < 21) return "2주 전";
-  if (diff < 30) return "3주 전";
-  return `${Math.floor(diff / 30)}개월 전`;
+function detectCountryKo(text: string): string {
+  const lower = text.toLowerCase();
+
+  if (lower.includes("korea") || lower.includes("south korea")) return "한국";
+  if (lower.includes("japan")) return "일본";
+  if (lower.includes("china")) return "중국";
+  if (lower.includes("united states") || lower.includes(" u.s.") || lower.includes(" us ")) return "미국";
+  if (lower.includes("united kingdom") || lower.includes(" uk ")) return "영국";
+  if (lower.includes("germany")) return "독일";
+  if (lower.includes("france")) return "프랑스";
+  if (lower.includes("netherlands")) return "네덜란드";
+  if (lower.includes("italy")) return "이탈리아";
+  if (lower.includes("spain")) return "스페인";
+  if (lower.includes("europe") || lower.includes("eu ")) return "EU/유럽";
+
+  return "글로벌";
 }
 
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 50);
+function sourceCountryKo(source: string): string {
+  const lower = source.toLowerCase();
+
+  if (lower.includes("reuters")) return "글로벌";
+  if (lower.includes("bloomberg")) return "미국";
+  if (lower.includes("financial times")) return "영국";
+  if (lower.includes("euractiv")) return "EU/유럽";
+  if (lower.includes("politico")) return "미국/EU";
+  if (lower.includes("korea")) return "한국";
+  if (lower.includes("japan")) return "일본";
+
+  return "미확인";
 }
 
-// ── 실제 수집 ─────────────────────────────────────────
-export async function fetchGoogleNews(params: {
-  queries: string[];
-  targetRegions: GoogleLocale[];
-  requiredKeywords: string[];
-  excludeKeywords: string[];
-  limit?: number;
-}): Promise<NewsItem[]> {
-  const { queries, targetRegions, requiredKeywords, excludeKeywords, limit = 15 } = params;
-  const cutoff = new Date(Date.now() - CUTOFF_DAYS * 86400000);
-  const raw: Array<{ title: string; source: string; url: string; date: string; summary: string; locale: string }> = [];
+function calculateRelevanceScore(title: string, regulationId: RegulationId): number {
+  const lower = title.toLowerCase();
+  const regulation = REGULATIONS[regulationId];
 
-  // 지역 × 쿼리 조합 (최대 쿼리 3개 × 지역 전체)
-  const querySlice = queries.slice(0, 3);
+  let score = 0;
 
-  await Promise.allSettled(
-    targetRegions.flatMap((locale) =>
-      querySlice.map(async (q) => {
-        const url =
-          `https://news.google.com/rss/search` +
-          `?q=${encodeURIComponent(q)}` +
-          `&hl=${locale.hl}&gl=${locale.gl}&ceid=${locale.ceid}`;
-        try {
-          const res = await fetch(url, {
-            headers: { "User-Agent": "Mozilla/5.0" },
-            next: { revalidate: 1800 }, // 30분 캐시
-          });
-          if (!res.ok) return;
-          const text = await res.text();
+  if (lower.includes(regulation.name.toLowerCase())) score += 50;
 
-          // 간단한 XML 파싱 (feedparser 없이)
-          const items = text.match(/<item>([\s\S]*?)<\/item>/g) ?? [];
-          for (const item of items.slice(0, 30)) {
-            const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] ??
-                          item.match(/<title>(.*?)<\/title>/)?.[1] ?? "";
-            const link  = item.match(/<link>(.*?)<\/link>/)?.[1] ??
-                          item.match(/href="(https?[^"]+)"/)?.[1] ?? "";
-            const pub   = item.match(/<source[^>]*>(.*?)<\/source>/)?.[1] ?? "Google News";
-            const date  = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] ?? "";
-            const desc  = (item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1] ??
-                          item.match(/<description>(.*?)<\/description>/)?.[1] ?? "").slice(0, 300);
+  for (const query of regulation.queries) {
+    const cleaned = query.replaceAll('"', "").toLowerCase();
+    const parts = cleaned.split(" ");
+    for (const part of parts) {
+      if (part.length > 3 && lower.includes(part)) score += 5;
+    }
+  }
 
-            const dt = parseDate(date);
-            if (dt < cutoff) continue;
+  if (isNoiseNews(title)) score -= 100;
 
-            raw.push({ title: title.split(" - ")[0], source: pub, url: link, date, summary: desc, locale: locale.gl });
-          }
-        } catch { /* 실패한 지역은 무시 */ }
-      })
-    )
+  return score;
+}
+
+function extractSource(item: any): string {
+  if (item.source?.title) return item.source.title;
+
+  const title = item.title || "";
+  const match = title.match(/ - ([^-]+)$/);
+  if (match?.[1]) return match[1].trim();
+
+  return "Unknown";
+}
+
+function cleanTitle(title: string): string {
+  return title.replace(/ - [^-]+$/, "").trim();
+}
+
+function makeGoogleNewsRssUrl(query: string, limit: number) {
+  const encodedQuery = encodeURIComponent(`${query} when:30d`);
+  return `https://news.google.com/rss/search?q=${encodedQuery}&hl=en-US&gl=US&ceid=US:en`;
+}
+
+export async function fetchGoogleNewsForRegulation(
+  regulationId: RegulationId,
+  limit = 5
+): Promise<NewsItem[]> {
+  const regulation = REGULATIONS[regulationId];
+  const results: NewsItem[] = [];
+
+  for (const query of regulation.queries.slice(0, 3)) {
+    const url = makeGoogleNewsRssUrl(query, limit);
+
+    try {
+      const feed = await parser.parseURL(url);
+
+      for (const item of feed.items) {
+        const originalTitle = cleanTitle(item.title || "");
+        if (!originalTitle || isNoiseNews(originalTitle)) continue;
+
+        const source = extractSource(item);
+        const combinedText = `${originalTitle} ${source}`;
+
+        const news: NewsItem = {
+          titleKo: originalTitle,
+          originalTitle,
+          source,
+          sourceCountryKo: sourceCountryKo(source),
+          publishedAt: item.isoDate || item.pubDate || "",
+          url: item.link || "",
+          regulationId,
+          regulationName: regulation.name,
+          stakeholderType: classifyStakeholder(combinedText),
+          reactionType: classifyReactionType(combinedText),
+          countryKo: detectCountryKo(combinedText),
+          relevanceScore: calculateRelevanceScore(originalTitle, regulationId),
+        };
+
+        results.push(news);
+      }
+    } catch (error) {
+      console.error(`Google News fetch failed for ${regulationId}`, error);
+    }
+  }
+
+  const deduped = Array.from(
+    new Map(results.map((item) => [item.url || item.originalTitle, item])).values()
   );
 
-  // 관련성 필터
-  const isRelevant = (item: typeof raw[0]) => {
-    const text = `${item.title} ${item.summary}`.toLowerCase();
-    if (excludeKeywords.some((k) => text.includes(k.toLowerCase()))) return false;
-    if (requiredKeywords.length === 0) return true;
-    return requiredKeywords.some((k) => text.includes(k.toLowerCase()));
-  };
+  return deduped
+    .sort((a, b) => b.relevanceScore - a.relevanceScore)
+    .slice(0, limit);
+}
 
-  let filtered = raw.filter(isRelevant);
-  if (filtered.length === 0) filtered = raw; // 필터 완화
+export async function fetchAllRegulationNews(limit = 5) {
+  const regulationIds = Object.keys(REGULATIONS) as RegulationId[];
 
-  // 중복 제거
-  const seen = new Set<string>();
-  const uniq = filtered.filter((a) => {
-    const key = a.title.toLowerCase().slice(0, 80);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const sections = await Promise.all(
+    regulationIds.map(async (regulationId) => {
+      const news = await fetchGoogleNewsForRegulation(regulationId, limit);
 
-  // 최신순 정렬
-  uniq.sort((a, b) => parseDate(b.date).getTime() - parseDate(a.date).getTime());
+      return {
+        regulationId,
+        regulationName: REGULATIONS[regulationId].name,
+        count: news.length,
+        news,
+      };
+    })
+  );
 
-  // NewsItem 변환
-  return uniq.slice(0, limit).map((a) => ({
-    id: slugify(a.title),
-    title: a.title,
-    source: a.source,
-    sourceKo: getPublisherKo(a.source),
-    country: a.locale,
-    locale: a.locale,
-    url: a.url,
-    date: a.date.slice(0, 10),
-    age: formatAge(parseDate(a.date)),
-    summary: a.summary,
-    newsType: classifyNewsType(a.title, a.summary),
-    sourceType: getSourceType(a.source),
-  }));
+  return sections;
 }
