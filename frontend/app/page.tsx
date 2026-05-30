@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { getNews, getRegulations } from "@/lib/api";
