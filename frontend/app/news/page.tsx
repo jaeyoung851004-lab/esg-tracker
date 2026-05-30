@@ -108,7 +108,15 @@ export default function NewsPage() {
     displaySections.find((section) => section.regulationId === activeRegulationId) ||
     displaySections[0];
 
-  const activeNews = activeSection?.news ?? [];
+ function getTime(item: NewsItem) {
+  const rawDate = item.publishedAt || item.date || "";
+  const time = new Date(rawDate).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+const activeNews = [...(activeSection?.news ?? [])].sort((a, b) => {
+  return getTime(b) - getTime(a);
+});
 
   return (
     <div className="flex min-h-screen bg-slate-50">
