@@ -221,6 +221,7 @@ function getReadiness(reg: OldRegulation): number {
 function getPriority(reg: OldRegulation): string {
   return reg.display?.priority || "중간";
 }
+
 function cleanLegal(reg: OldRegulation): Regulation["legal"] {
   if (!reg.legal) return undefined;
 
@@ -237,6 +238,7 @@ function cleanLegal(reg: OldRegulation): Regulation["legal"] {
     dates: cleanDates,
   };
 }
+
 function convertRegulation(reg: OldRegulation): Regulation {
   const statusTone = normalizeStatusTone(reg.display?.status_tone);
   const primarySource = reg.legal?.sources?.[0];
@@ -271,7 +273,7 @@ function convertRegulation(reg: OldRegulation): Regulation {
     name_ko: reg.name_ko,
     name_en: reg.name_en,
 
-  legal: cleanLegal(reg),
+    legal: cleanLegal(reg),
     ai_layer: reg.ai_layer,
     news_config: reg.news_config,
     history: reg.history,
@@ -296,12 +298,13 @@ export async function getRegulations(): Promise<Regulation[]> {
 
 export async function getNews(): Promise<NewsItem[]> {
   try {
-const res = await fetch(
-  "/api/news?limit=30",
-      {
-        cache: "no-store",
-      }
-    );
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000";
+
+    const res = await fetch(`${baseUrl}/api/news?limit=30`, {
+      cache: "no-store",
+    });
 
     if (!res.ok) {
       console.error("News API Error:", res.status);
@@ -310,17 +313,17 @@ const res = await fetch(
 
     const data = await res.json();
 
-    console.log(
-      "News loaded:",
-      data?.news?.length ?? 0
-    );
+    if (data.sections) {
+      return data.sections.flatMap((section: any) => section.news);
+    }
 
-  if (data.sections) {
-  return data.sections.flatMap((section: any) => section.news);
+    return data.news ?? fallbackNews;
+  } catch (error) {
+    console.error("getNews failed:", error);
+    return fallbackNews;
+  }
 }
 
-return data.news ?? fallbackNews;
-}
 export async function getStats(): Promise<DashboardStats> {
   const total = fallbackRegulations.length || 1;
 
