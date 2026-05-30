@@ -356,7 +356,7 @@ return deduped
     return dateB - dateA;
   })
   .slice(0, limit);
-
+}
 export async function fetchAllRegulationNews(limit = 5) {
   const regulationIds = Object.keys(REGULATIONS) as RegulationId[];
 
