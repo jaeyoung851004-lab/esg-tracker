@@ -19,7 +19,6 @@ export interface Regulation {
 
   summary: string;
 
-  // 상세 페이지용
   name_ko?: string;
   name_en?: string;
   key_points?: string[];
@@ -28,4 +27,19 @@ export interface Regulation {
   card_date_value?: string;
 
   official_url?: string;
+}
+
+export interface NewsItem {
+  id: string;
+  source: string;
+  title: string;
+  age: string;
+  url: string;
+}
+
+export interface DashboardStats {
+  totalRegulations: number;
+  urgentTasks: number;
+  averageReadiness: number;
+  highPriority: number;
 }
