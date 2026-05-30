@@ -55,13 +55,12 @@ function getAllSection(sections: NewsSection[]): NewsSection {
     }))
   );
 
-  return {
-    regulationId: "all",
-    regulationName: "전체",
-    count: news.length,
-    news,
-  };
-}
+return {
+  regulationId: "all",
+  regulationName: "전체",
+  count: news.length,
+  news: news.sort((a, b) => getTime(b) - getTime(a)),
+};
 
 export default function NewsPage() {
   const [sections, setSections] = useState<NewsSection[]>([]);
