@@ -296,18 +296,13 @@ export async function getRegulations(): Promise<Regulation[]> {
 
 export async function getNews(): Promise<NewsItem[]> {
   try {
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
-
-    const res = await fetch(`${baseUrl}/api/news?limit=30`, {
+    const res = await fetch("/api/news?limit=30", {
       next: { revalidate: 1800 },
     });
 
     if (!res.ok) return fallbackNews;
 
     const data = await res.json();
-
     return data.news ?? fallbackNews;
   } catch {
     return fallbackNews;
