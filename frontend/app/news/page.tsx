@@ -1,20 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Sidebar } from "@/components/sidebar";
+import { Topbar } from "@/components/topbar";
 
 type NewsItem = {
-  titleKo: string;
-  originalTitle: string;
-  source: string;
-  sourceCountryKo: string;
-  publishedAt: string;
-  url: string;
-  regulationId: string;
-  regulationName: string;
-  stakeholderType: string;
-  reactionType: string;
-  countryKo: string;
-  relevanceScore: number;
+  titleKo?: string;
+  originalTitle?: string;
+  title?: string;
+  source?: string;
+  sourceCountryKo?: string;
+  publishedAt?: string;
+  date?: string;
+  url?: string;
+  regulationId?: string;
+  regulationName?: string;
+  stakeholderType?: string;
+  reactionType?: string;
+  countryKo?: string;
+  relevanceScore?: number;
 };
 
 type NewsSection = {
@@ -24,28 +28,50 @@ type NewsSection = {
   news: NewsItem[];
 };
 
-function formatDate(date: string) {
+function formatDate(date?: string) {
   if (!date) return "날짜 미확인";
 
   try {
     return new Intl.DateTimeFormat("ko-KR", {
       year: "numeric",
-      month: "short",
-      day: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     }).format(new Date(date));
   } catch {
     return "날짜 미확인";
   }
 }
 
+function getTitle(item: NewsItem) {
+  return item.titleKo || item.title || item.originalTitle || "제목 없음";
+}
+
+function getAllSection(sections: NewsSection[]): NewsSection {
+  const news = sections.flatMap((section) =>
+    section.news.map((item) => ({
+      ...item,
+      regulationId: item.regulationId || section.regulationId,
+      regulationName: item.regulationName || section.regulationName,
+    }))
+  );
+
+  return {
+    regulationId: "all",
+    regulationName: "전체",
+    count: news.length,
+    news,
+  };
+}
+
 export default function NewsPage() {
   const [sections, setSections] = useState<NewsSection[]>([]);
+  const [activeRegulationId, setActiveRegulationId] = useState("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadNews() {
       try {
-        const response = await fetch("/api/news?limit=5", {
+        const response = await fetch("/api/news?limit=10", {
           cache: "no-store",
         });
 
@@ -73,123 +99,222 @@ export default function NewsPage() {
     loadNews();
   }, []);
 
-  return (
-    <main className="min-h-screen bg-slate-50 px-6 py-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8">
-          <p className="text-sm font-medium text-slate-500">
-            Impact ON ESG 규제 트래커
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">
-            뉴스 & 인사이트
-          </h1>
-          <p className="mt-3 text-sm text-slate-600">
-            주요 ESG 규제별로 글로벌 뉴스와 시장 반응을 분류합니다.
-          </p>
-        </div>
+  const displaySections = useMemo(() => {
+    if (sections.length === 0) return [];
+    return [getAllSection(sections), ...sections];
+  }, [sections]);
 
-        {loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
-            규제별 뉴스를 불러오는 중입니다.
+  const activeSection =
+    displaySections.find((section) => section.regulationId === activeRegulationId) ||
+    displaySections[0];
+
+  const activeNews = activeSection?.news ?? [];
+
+  return (
+    <div className="flex min-h-screen bg-slate-50">
+      <Sidebar />
+
+      <div className="min-w-0 flex-1">
+        <Topbar />
+
+        <main className="mx-auto max-w-[1280px] space-y-6 p-5">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-emeraldBrand">
+              Impact ON ESG Regulation Intelligence
+            </p>
+            <h1 className="mt-2 text-2xl font-black text-navy">
+              뉴스 & 인사이트
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              주요 ESG 규제별 뉴스와 시장 반응을 매체, 지역, 플레이어, 반응 유형 기준으로 검증합니다.
+            </p>
           </div>
-        ) : (
-          <div className="space-y-10">
-            {sections.map((section) => (
-              <section key={section.regulationId}>
-                <div className="mb-4 flex items-end justify-between">
+
+          {loading ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+              규제별 뉴스를 불러오는 중입니다.
+            </div>
+          ) : (
+            <>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap gap-2">
+                  {displaySections.map((section) => {
+                    const isActive = section.regulationId === activeRegulationId;
+
+                    return (
+                      <button
+                        key={section.regulationId}
+                        type="button"
+                        onClick={() => setActiveRegulationId(section.regulationId)}
+                        className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                          isActive
+                            ? "bg-navy text-white"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {section.regulationName}
+                        <span className="ml-1 opacity-70">
+                          {section.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <section className="grid gap-4 lg:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs font-bold text-slate-400">선택 규제</p>
+                  <p className="mt-2 text-lg font-black text-navy">
+                    {activeSection?.regulationName ?? "전체"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs font-bold text-slate-400">뉴스 수</p>
+                  <p className="mt-2 text-lg font-black text-navy">
+                    {activeNews.length}건
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs font-bold text-slate-400">현재 상태</p>
+                  <p className="mt-2 text-sm font-bold text-slate-700">
+                    수집/분류 검증 중
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs font-bold text-slate-400">데이터 기준</p>
+                  <p className="mt-2 text-sm font-bold text-slate-700">
+                    Google News RSS · 최근 30일
+                  </p>
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900">
-                      {section.regulationName}
+                    <h2 className="text-sm font-black text-navy">
+                      {activeSection?.regulationName ?? "전체"} 뉴스 검증 리스트
                     </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      관련 뉴스 {section.count}건
+                    <p className="mt-1 text-xs text-slate-500">
+                      보도일자, 매체, 지역, 플레이어, 반응 유형을 한 줄에서 확인합니다.
                     </p>
                   </div>
 
-                  <a
-                    href={`/api/news?regulationId=${section.regulationId}&limit=10`}
-                    target="_blank"
-                    className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                  >
-                    API 보기
-                  </a>
+                  {activeSection?.regulationId && activeSection.regulationId !== "all" && (
+                    <a
+                      href={`/api/news?regulationId=${activeSection.regulationId}&limit=10`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-emeraldBrand hover:underline"
+                    >
+                      API 보기
+                    </a>
+                  )}
                 </div>
 
-                {section.news.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
-                    현재 표시할 뉴스가 없습니다.
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {section.news.map((item) => (
-                      <article
-                        key={`${item.regulationId}-${item.url}`}
-                        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
-                      >
-                        <div className="mb-3 flex flex-wrap gap-2">
-                          <span className="rounded-full bg-slate-900 px-2.5 py-1 text-xs font-medium text-white">
-                            {item.regulationName}
-                          </span>
-                          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-                            {item.stakeholderType}
-                          </span>
-                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                            {item.reactionType}
-                          </span>
-                        </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-100 text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="w-28 px-4 py-3 text-left text-xs font-black text-slate-500">
+                          보도일자
+                        </th>
+                        <th className="w-32 px-4 py-3 text-left text-xs font-black text-slate-500">
+                          규제
+                        </th>
+                        <th className="w-36 px-4 py-3 text-left text-xs font-black text-slate-500">
+                          매체
+                        </th>
+                        <th className="w-32 px-4 py-3 text-left text-xs font-black text-slate-500">
+                          매체 지역
+                        </th>
+                        <th className="w-36 px-4 py-3 text-left text-xs font-black text-slate-500">
+                          플레이어
+                        </th>
+                        <th className="w-36 px-4 py-3 text-left text-xs font-black text-slate-500">
+                          반응 유형
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-black text-slate-500">
+                          기사 제목
+                        </th>
+                      </tr>
+                    </thead>
 
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block"
-                        >
-                          <h3 className="line-clamp-3 text-base font-bold leading-6 text-slate-900 hover:text-blue-700">
-                            {item.titleKo}
-                          </h3>
-                        </a>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {activeNews.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            className="px-4 py-10 text-center text-sm text-slate-400"
+                          >
+                            표시할 뉴스가 없습니다.
+                          </td>
+                        </tr>
+                      ) : (
+                        activeNews.map((item, index) => (
+                          <tr
+                            key={`${item.regulationId}-${item.url}-${index}`}
+                            className="hover:bg-slate-50"
+                          >
+                            <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                              {formatDate(item.publishedAt || item.date)}
+                            </td>
 
-                        {item.originalTitle !== item.titleKo && (
-                          <p className="mt-2 line-clamp-2 text-xs text-slate-500">
-                            원문: {item.originalTitle}
-                          </p>
-                        )}
+                            <td className="px-4 py-3">
+                              <span className="rounded-full bg-navy px-2 py-1 text-[11px] font-black text-white">
+                                {item.regulationName || item.regulationId || "-"}
+                              </span>
+                            </td>
 
-                        <div className="mt-4 space-y-1 text-xs text-slate-500">
-                          <p>
-                            매체:{" "}
-                            <span className="font-medium text-slate-700">
-                              {item.source}
-                            </span>
-                          </p>
-                          <p>
-                            매체 국가/지역:{" "}
-                            <span className="font-medium text-slate-700">
-                              {item.sourceCountryKo}
-                            </span>
-                          </p>
-                          <p>
-                            관련 국가:{" "}
-                            <span className="font-medium text-slate-700">
-                              {item.countryKo}
-                            </span>
-                          </p>
-                          <p>
-                            보도일자:{" "}
-                            <span className="font-medium text-slate-700">
-                              {formatDate(item.publishedAt)}
-                            </span>
-                          </p>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
+                            <td className="px-4 py-3 text-xs font-bold text-slate-700">
+                              {item.source || "미확인"}
+                            </td>
+
+                            <td className="px-4 py-3 text-xs text-slate-600">
+                              {item.sourceCountryKo || "미확인"}
+                            </td>
+
+                            <td className="px-4 py-3">
+                              <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700">
+                                {item.stakeholderType || "미분류"}
+                              </span>
+                            </td>
+
+                            <td className="px-4 py-3">
+                              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">
+                                {item.reactionType || "미분류"}
+                              </span>
+                            </td>
+
+                            <td className="px-4 py-3">
+                              <a
+                                href={item.url || "#"}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-bold leading-snug text-navy hover:text-emeraldBrand hover:underline"
+                              >
+                                {getTitle(item)}
+                              </a>
+                              {item.originalTitle && item.originalTitle !== getTitle(item) && (
+                                <p className="mt-1 text-xs text-slate-400">
+                                  원문: {item.originalTitle}
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </section>
-            ))}
-          </div>
-        )}
+            </>
+          )}
+        </main>
       </div>
-    </main>
+    </div>
   );
 }
