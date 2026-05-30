@@ -12,10 +12,11 @@ type OldRegulation = {
     political_direction?: string;
     dates?: Record<
       string,
-      {
-        date: string;
-        label: string;
-      }
+      | {
+          date: string;
+          label: string;
+        }
+      | undefined
     >;
     thresholds?: {
       scope?: string;
@@ -76,7 +77,8 @@ type RegulationsJson = {
   regulations: OldRegulation[];
 };
 
-const rawRegulations = (regulationsData as unknown as RegulationsJson).regulations ?? [];
+const rawRegulations =
+  (regulationsData as unknown as RegulationsJson).regulations ?? [];
 
 const fallbackNews: NewsItem[] = [
   {
@@ -146,14 +148,41 @@ function getDeadline(reg: OldRegulation): string {
   );
 }
 
+function calculateDDay(dateText?: string): number {
+  if (!dateText || dateText === "미정") return 999;
+
+  const normalized = dateText.replace(/\./g, "-").trim();
+  const date = new Date(normalized);
+
+  if (Number.isNaN(date.getTime())) return 999;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+
+  return Math.ceil(
+    (date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+}
+
 function getCountry(reg: OldRegulation): string {
-  const text = `${reg.name_en ?? ""} ${reg.name_ko ?? ""} ${reg.acronym ?? ""}`;
+  const text = `${reg.name_en ?? ""} ${reg.name_ko ?? ""} ${
+    reg.acronym ?? ""
+  }`;
 
   if (
     text.includes("EU") ||
-    ["ESPR", "PPWR", "CSDDD", "CSRD", "CBAM", "EUDR", "GCD", "Battery Reg", "DPP"].includes(
-      reg.acronym ?? ""
-    )
+    [
+      "ESPR",
+      "PPWR",
+      "CSDDD",
+      "CSRD",
+      "CBAM",
+      "EUDR",
+      "GCD",
+      "Battery Reg",
+      "DPP",
+    ].includes(reg.acronym ?? "")
   ) {
     return "EU";
   }
@@ -196,6 +225,7 @@ function getPriority(reg: OldRegulation): string {
 function convertRegulation(reg: OldRegulation): Regulation {
   const statusTone = normalizeStatusTone(reg.display?.status_tone);
   const primarySource = reg.legal?.sources?.[0];
+  const deadline = getDeadline(reg);
 
   return {
     id: reg.id,
@@ -209,8 +239,8 @@ function convertRegulation(reg: OldRegulation): Regulation {
     status: reg.display?.status_label ?? reg.legal?.legal_state ?? "확인 필요",
     statusTone,
 
-    deadline: getDeadline(reg),
-    dDay: 999,
+    deadline,
+    dDay: calculateDDay(deadline),
 
     readiness: getReadiness(reg),
     risk: getRisk(reg),
@@ -254,13 +284,19 @@ export async function getNews(): Promise<NewsItem[]> {
 }
 
 export async function getStats(): Promise<DashboardStats> {
+  const total = fallbackRegulations.length || 1;
+
   return {
     totalRegulations: fallbackRegulations.length,
-    urgentTasks: fallbackRegulations.filter((item) => item.statusTone === "warning" || item.statusTone === "uncertain").length,
+    urgentTasks: fallbackRegulations.filter(
+      (item) =>
+        typeof item.dDay === "number" && item.dDay >= 0 && item.dDay <= 120
+    ).length,
     averageReadiness: Math.round(
-      fallbackRegulations.reduce((sum, item) => sum + item.readiness, 0) /
-        fallbackRegulations.length
+      fallbackRegulations.reduce((sum, item) => sum + item.readiness, 0) / total
     ),
-    highPriority: fallbackRegulations.filter((item) => item.priority === "높음").length,
+    highPriority: fallbackRegulations.filter(
+      (item) => item.priority === "높음" || item.priority === "High"
+    ).length,
   };
 }
