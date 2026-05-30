@@ -42,8 +42,12 @@ function formatDate(date?: string) {
   }
 }
 
-function getTitle(item: NewsItem) {
+function getKoreanTitle(item: NewsItem) {
   return item.titleKo || item.title || item.originalTitle || "제목 없음";
+}
+
+function getOriginalTitle(item: NewsItem) {
+  return item.originalTitle || item.title || item.titleKo || "";
 }
 
 function getTime(item: NewsItem) {
@@ -56,7 +60,6 @@ function sortNewsByDateDesc(news: NewsItem[]) {
   return [...news].sort((a, b) => {
     const dateDiff = getTime(b) - getTime(a);
     if (dateDiff !== 0) return dateDiff;
-
     return (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
   });
 }
@@ -173,9 +176,7 @@ export default function NewsPage() {
                         }`}
                       >
                         {section.regulationName}
-                        <span className="ml-1 opacity-70">
-                          {section.count}
-                        </span>
+                        <span className="ml-1 opacity-70">{section.count}</span>
                       </button>
                     );
                   })}
@@ -207,7 +208,7 @@ export default function NewsPage() {
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-xs font-bold text-slate-400">데이터 기준</p>
                   <p className="mt-2 text-sm font-bold text-slate-700">
-                    Google News RSS · 최근 30일
+                    Google News RSS · 최근 30일 · 보도일자 최신순
                   </p>
                 </div>
               </section>
@@ -257,7 +258,7 @@ export default function NewsPage() {
                         <th className="w-36 px-4 py-3 text-left text-xs font-black text-slate-500">
                           반응 유형
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-black text-slate-500">
+                        <th className="min-w-[420px] px-4 py-3 text-left text-xs font-black text-slate-500">
                           기사 제목
                         </th>
                       </tr>
@@ -274,58 +275,68 @@ export default function NewsPage() {
                           </td>
                         </tr>
                       ) : (
-                        activeNews.map((item, index) => (
-                          <tr
-                            key={`${item.regulationId}-${item.url}-${index}`}
-                            className="hover:bg-slate-50"
-                          >
-                            <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
-                              {formatDate(item.publishedAt || item.date)}
-                            </td>
+                        activeNews.map((item, index) => {
+                          const koreanTitle = getKoreanTitle(item);
+                          const originalTitle = getOriginalTitle(item);
+                          const shouldShowOriginal =
+                            originalTitle && originalTitle !== koreanTitle;
 
-                            <td className="px-4 py-3">
-                              <span className="rounded-full bg-navy px-2 py-1 text-[11px] font-black text-white">
-                                {item.regulationName || item.regulationId || "-"}
-                              </span>
-                            </td>
+                          return (
+                            <tr
+                              key={`${item.regulationId}-${item.url}-${index}`}
+                              className="hover:bg-slate-50"
+                            >
+                              <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                                {formatDate(item.publishedAt || item.date)}
+                              </td>
 
-                            <td className="px-4 py-3 text-xs font-bold text-slate-700">
-                              {item.source || "미확인"}
-                            </td>
+                              <td className="px-4 py-3">
+                                <span className="rounded-full bg-navy px-2 py-1 text-[11px] font-black text-white">
+                                  {item.regulationName || item.regulationId || "-"}
+                                </span>
+                              </td>
 
-                            <td className="px-4 py-3 text-xs text-slate-600">
-                              {item.sourceCountryKo || "미확인"}
-                            </td>
+                              <td className="px-4 py-3 text-xs font-bold text-slate-700">
+                                {item.source || "미확인"}
+                              </td>
 
-                            <td className="px-4 py-3">
-                              <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700">
-                                {item.stakeholderType || "미분류"}
-                              </span>
-                            </td>
+                              <td className="px-4 py-3 text-xs text-slate-600">
+                                {item.sourceCountryKo || "미확인"}
+                              </td>
 
-                            <td className="px-4 py-3">
-                              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">
-                                {item.reactionType || "미분류"}
-                              </span>
-                            </td>
+                              <td className="px-4 py-3">
+                                <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700">
+                                  {item.stakeholderType || "미분류"}
+                                </span>
+                              </td>
 
-                            <td className="px-4 py-3">
-                              <a
-                                href={item.url || "#"}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-bold leading-snug text-navy hover:text-emeraldBrand hover:underline"
-                              >
-                                {getTitle(item)}
-                              </a>
-                              {item.originalTitle && item.originalTitle !== getTitle(item) && (
-                                <p className="mt-1 text-xs text-slate-400">
-                                  원문: {item.originalTitle}
-                                </p>
-                              )}
-                            </td>
-                          </tr>
-                        ))
+                              <td className="px-4 py-3">
+                                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">
+                                  {item.reactionType || "미분류"}
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-3">
+                                <div className="space-y-1">
+                                  <a
+                                    href={item.url || "#"}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block font-bold leading-snug text-navy hover:text-emeraldBrand hover:underline"
+                                  >
+                                    {koreanTitle}
+                                  </a>
+
+                                  {shouldShowOriginal && (
+                                    <p className="text-xs leading-snug text-slate-400">
+                                      원문: {originalTitle}
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
