@@ -295,17 +295,31 @@ export async function getRegulations(): Promise<Regulation[]> {
 }
 
 export async function getNews(): Promise<NewsItem[]> {
-  const res = await fetch(
-    "https://esg-tracker-p1fulcbnj-jaeyoung851004-4321s-projects.vercel.app/api/news?limit=30",
-    {
-      cache: "no-store",
+  try {
+    const res = await fetch(
+      "https://esg-tracker-p1fulcbnj-jaeyoung851004-4321s-projects.vercel.app/api/news?limit=30",
+      {
+        cache: "no-store",
+      }
+    );
+
+    if (!res.ok) {
+      console.error("News API Error:", res.status);
+      return fallbackNews;
     }
-  );
 
-  if (!res.ok) return fallbackNews;
+    const data = await res.json();
 
-  const data = await res.json();
-  return data.news ?? [];
+    console.log(
+      "News loaded:",
+      data?.news?.length ?? 0
+    );
+
+    return data.news ?? fallbackNews;
+  } catch (error) {
+    console.error("getNews failed:", error);
+    return fallbackNews;
+  }
 }
 export async function getStats(): Promise<DashboardStats> {
   const total = fallbackRegulations.length || 1;
