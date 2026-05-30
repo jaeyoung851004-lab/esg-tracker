@@ -22,6 +22,87 @@ export type NewsItem = {
   reactionType: string;
   countryKo: string;
   relevanceScore: number;
+  languageKo?: string;
+  translationStatus?: "번역 대기" | "번역 완료";
+};
+
+type NewsRegion = {
+  hl: string;
+  gl: string;
+  ceid: string;
+  countryKo: string;
+  languageKo: string;
+};
+
+const COMMON_REGIONS: NewsRegion[] = [
+  { hl: "en-US", gl: "US", ceid: "US:en", countryKo: "미국", languageKo: "영어" },
+  { hl: "en-GB", gl: "GB", ceid: "GB:en", countryKo: "영국", languageKo: "영어" },
+  { hl: "en", gl: "BE", ceid: "BE:en", countryKo: "EU/벨기에", languageKo: "영어" },
+];
+
+const REGULATION_EXTRA_REGIONS: Record<RegulationId, NewsRegion[]> = {
+  csrd: [
+    { hl: "de", gl: "DE", ceid: "DE:de", countryKo: "독일", languageKo: "독일어" },
+    { hl: "fr", gl: "FR", ceid: "FR:fr", countryKo: "프랑스", languageKo: "프랑스어" },
+    { hl: "nl", gl: "NL", ceid: "NL:nl", countryKo: "네덜란드", languageKo: "네덜란드어" },
+    { hl: "it", gl: "IT", ceid: "IT:it", countryKo: "이탈리아", languageKo: "이탈리아어" },
+    { hl: "es", gl: "ES", ceid: "ES:es", countryKo: "스페인", languageKo: "스페인어" },
+    { hl: "ko", gl: "KR", ceid: "KR:ko", countryKo: "한국", languageKo: "한국어" },
+    { hl: "ja", gl: "JP", ceid: "JP:ja", countryKo: "일본", languageKo: "일본어" },
+  ],
+  cbam: [
+    { hl: "de", gl: "DE", ceid: "DE:de", countryKo: "독일", languageKo: "독일어" },
+    { hl: "pl", gl: "PL", ceid: "PL:pl", countryKo: "폴란드", languageKo: "폴란드어" },
+    { hl: "tr", gl: "TR", ceid: "TR:tr", countryKo: "튀르키예", languageKo: "튀르키예어" },
+    { hl: "zh-CN", gl: "CN", ceid: "CN:zh-Hans", countryKo: "중국", languageKo: "중국어" },
+    { hl: "en-IN", gl: "IN", ceid: "IN:en", countryKo: "인도", languageKo: "영어" },
+    { hl: "ko", gl: "KR", ceid: "KR:ko", countryKo: "한국", languageKo: "한국어" },
+  ],
+  csddd: [
+    { hl: "de", gl: "DE", ceid: "DE:de", countryKo: "독일", languageKo: "독일어" },
+    { hl: "fr", gl: "FR", ceid: "FR:fr", countryKo: "프랑스", languageKo: "프랑스어" },
+    { hl: "nl", gl: "NL", ceid: "NL:nl", countryKo: "네덜란드", languageKo: "네덜란드어" },
+    { hl: "ko", gl: "KR", ceid: "KR:ko", countryKo: "한국", languageKo: "한국어" },
+    { hl: "ja", gl: "JP", ceid: "JP:ja", countryKo: "일본", languageKo: "일본어" },
+  ],
+  espr: [
+    { hl: "de", gl: "DE", ceid: "DE:de", countryKo: "독일", languageKo: "독일어" },
+    { hl: "fr", gl: "FR", ceid: "FR:fr", countryKo: "프랑스", languageKo: "프랑스어" },
+    { hl: "it", gl: "IT", ceid: "IT:it", countryKo: "이탈리아", languageKo: "이탈리아어" },
+    { hl: "zh-CN", gl: "CN", ceid: "CN:zh-Hans", countryKo: "중국", languageKo: "중국어" },
+    { hl: "ko", gl: "KR", ceid: "KR:ko", countryKo: "한국", languageKo: "한국어" },
+  ],
+  eudr: [
+    { hl: "pt-BR", gl: "BR", ceid: "BR:pt-419", countryKo: "브라질", languageKo: "포르투갈어" },
+    { hl: "id", gl: "ID", ceid: "ID:id", countryKo: "인도네시아", languageKo: "인도네시아어" },
+    { hl: "en-MY", gl: "MY", ceid: "MY:en", countryKo: "말레이시아", languageKo: "영어" },
+    { hl: "fr", gl: "FR", ceid: "FR:fr", countryKo: "프랑스", languageKo: "프랑스어" },
+    { hl: "de", gl: "DE", ceid: "DE:de", countryKo: "독일", languageKo: "독일어" },
+  ],
+  "ai-act": [
+    { hl: "de", gl: "DE", ceid: "DE:de", countryKo: "독일", languageKo: "독일어" },
+    { hl: "fr", gl: "FR", ceid: "FR:fr", countryKo: "프랑스", languageKo: "프랑스어" },
+    { hl: "es", gl: "ES", ceid: "ES:es", countryKo: "스페인", languageKo: "스페인어" },
+    { hl: "zh-CN", gl: "CN", ceid: "CN:zh-Hans", countryKo: "중국", languageKo: "중국어" },
+    { hl: "ko", gl: "KR", ceid: "KR:ko", countryKo: "한국", languageKo: "한국어" },
+  ],
+  issb: [
+    { hl: "ja", gl: "JP", ceid: "JP:ja", countryKo: "일본", languageKo: "일본어" },
+    { hl: "en-SG", gl: "SG", ceid: "SG:en", countryKo: "싱가포르", languageKo: "영어" },
+    { hl: "en-AU", gl: "AU", ceid: "AU:en", countryKo: "호주", languageKo: "영어" },
+    { hl: "ko", gl: "KR", ceid: "KR:ko", countryKo: "한국", languageKo: "한국어" },
+  ],
+  "sec-climate": [
+    { hl: "en-US", gl: "US", ceid: "US:en", countryKo: "미국", languageKo: "영어" },
+  ],
+  battery: [
+    { hl: "de", gl: "DE", ceid: "DE:de", countryKo: "독일", languageKo: "독일어" },
+    { hl: "hu", gl: "HU", ceid: "HU:hu", countryKo: "헝가리", languageKo: "헝가리어" },
+    { hl: "pl", gl: "PL", ceid: "PL:pl", countryKo: "폴란드", languageKo: "폴란드어" },
+    { hl: "zh-CN", gl: "CN", ceid: "CN:zh-Hans", countryKo: "중국", languageKo: "중국어" },
+    { hl: "ko", gl: "KR", ceid: "KR:ko", countryKo: "한국", languageKo: "한국어" },
+    { hl: "ja", gl: "JP", ceid: "JP:ja", countryKo: "일본", languageKo: "일본어" },
+  ],
 };
 
 export const REGULATIONS: Record<RegulationId, { name: string; queries: string[] }> = {
@@ -33,6 +114,8 @@ export const REGULATIONS: Record<RegulationId, { name: string; queries: string[]
       `"CSRD" company response`,
       `"CSRD" audit assurance`,
       `"CSRD" delay`,
+      `"CSRD" omnibus`,
+      `"CSRD" supply chain`,
     ],
   },
   cbam: {
@@ -42,6 +125,8 @@ export const REGULATIONS: Record<RegulationId, { name: string; queries: string[]
       `"Carbon Border Adjustment Mechanism"`,
       `"CBAM" exporters`,
       `"CBAM" reporting obligation`,
+      `"CBAM" steel`,
+      `"CBAM" cement`,
     ],
   },
   csddd: {
@@ -51,6 +136,7 @@ export const REGULATIONS: Record<RegulationId, { name: string; queries: string[]
       `"Corporate Sustainability Due Diligence Directive"`,
       `"EU due diligence directive"`,
       `"CSDDD" supply chain`,
+      `"CSDDD" delay`,
     ],
   },
   espr: {
@@ -59,6 +145,7 @@ export const REGULATIONS: Record<RegulationId, { name: string; queries: string[]
       `"ESPR"`,
       `"Ecodesign for Sustainable Products Regulation"`,
       `"digital product passport"`,
+      `"ESPR" textiles`,
     ],
   },
   eudr: {
@@ -68,6 +155,7 @@ export const REGULATIONS: Record<RegulationId, { name: string; queries: string[]
       `"EU Deforestation Regulation"`,
       `"EUDR" delay`,
       `"EUDR" compliance`,
+      `"EUDR" coffee cocoa palm oil`,
     ],
   },
   "ai-act": {
@@ -76,6 +164,7 @@ export const REGULATIONS: Record<RegulationId, { name: string; queries: string[]
       `"EU AI Act"`,
       `"Artificial Intelligence Act" Europe`,
       `"AI Act" compliance`,
+      `"AI Act" companies`,
     ],
   },
   issb: {
@@ -84,6 +173,7 @@ export const REGULATIONS: Record<RegulationId, { name: string; queries: string[]
       `"ISSB" sustainability disclosure`,
       `"IFRS S1"`,
       `"IFRS S2"`,
+      `"ISSB" climate disclosure`,
     ],
   },
   "sec-climate": {
@@ -100,6 +190,7 @@ export const REGULATIONS: Record<RegulationId, { name: string; queries: string[]
       `"EU Battery Regulation"`,
       `"battery passport" EU`,
       `"Battery Regulation" due diligence`,
+      `"EU battery rules"`,
     ],
   },
 };
@@ -125,6 +216,7 @@ type RawRssItem = {
   link: string;
   pubDate: string;
   source: string;
+  region: NewsRegion;
 };
 
 function decodeXml(text: string) {
@@ -148,9 +240,18 @@ function getSourceValue(xml: string) {
   return decodeXml(match?.[1]?.trim() || "");
 }
 
-async function fetchGoogleNewsRss(query: string): Promise<RawRssItem[]> {
+function getRegionsForRegulation(regulationId: RegulationId): NewsRegion[] {
+  const merged = [...COMMON_REGIONS, ...(REGULATION_EXTRA_REGIONS[regulationId] || [])];
+
+  return Array.from(new Map(merged.map((region) => [region.ceid, region])).values());
+}
+
+async function fetchGoogleNewsRss(
+  query: string,
+  region: NewsRegion
+): Promise<RawRssItem[]> {
   const encodedQuery = encodeURIComponent(`${query} when:30d`);
-  const url = `https://news.google.com/rss/search?q=${encodedQuery}&hl=en-US&gl=US&ceid=US:en`;
+  const url = `https://news.google.com/rss/search?q=${encodedQuery}&hl=${region.hl}&gl=${region.gl}&ceid=${region.ceid}`;
 
   const response = await fetch(url, {
     headers: {
@@ -171,6 +272,7 @@ async function fetchGoogleNewsRss(query: string): Promise<RawRssItem[]> {
     link: getTagValue(itemXml, "link"),
     pubDate: getTagValue(itemXml, "pubDate"),
     source: getSourceValue(itemXml),
+    region,
   }));
 }
 
@@ -216,7 +318,8 @@ function classifyStakeholder(text: string): string {
     lower.includes("deloitte") ||
     lower.includes("pwc") ||
     lower.includes("ey") ||
-    lower.includes("kpmg")
+    lower.includes("kpmg") ||
+    lower.includes("anthesis")
   ) return "컨설팅/회계법인";
 
   if (
@@ -248,36 +351,43 @@ function classifyReactionType(text: string): string {
   return "시장 동향";
 }
 
-function detectCountryKo(text: string): string {
+function detectCountryKo(text: string, fallbackCountryKo: string): string {
   const lower = text.toLowerCase();
 
-  if (lower.includes("korea") || lower.includes("south korea")) return "한국";
-  if (lower.includes("japan")) return "일본";
-  if (lower.includes("china")) return "중국";
+  if (lower.includes("korea") || lower.includes("south korea") || lower.includes("한국")) return "한국";
+  if (lower.includes("japan") || lower.includes("日本")) return "일본";
+  if (lower.includes("china") || lower.includes("中国")) return "중국";
   if (lower.includes("united states") || lower.includes(" u.s.") || lower.includes(" us ")) return "미국";
   if (lower.includes("united kingdom") || lower.includes(" uk ")) return "영국";
-  if (lower.includes("germany")) return "독일";
+  if (lower.includes("germany") || lower.includes("deutschland")) return "독일";
   if (lower.includes("france")) return "프랑스";
-  if (lower.includes("netherlands")) return "네덜란드";
-  if (lower.includes("italy")) return "이탈리아";
-  if (lower.includes("spain")) return "스페인";
+  if (lower.includes("netherlands") || lower.includes("nederland")) return "네덜란드";
+  if (lower.includes("italy") || lower.includes("italia")) return "이탈리아";
+  if (lower.includes("spain") || lower.includes("españa")) return "스페인";
+  if (lower.includes("brazil") || lower.includes("brasil")) return "브라질";
+  if (lower.includes("mexico") || lower.includes("méxico")) return "멕시코";
   if (lower.includes("europe") || lower.includes("eu ")) return "EU/유럽";
 
-  return "글로벌";
+  return fallbackCountryKo || "글로벌";
 }
 
-function sourceCountryKo(source: string): string {
+function sourceCountryKo(source: string, region: NewsRegion): string {
   const lower = source.toLowerCase();
 
   if (lower.includes("reuters")) return "글로벌";
+  if (lower.includes("associated press") || lower.includes("ap news")) return "미국";
   if (lower.includes("bloomberg")) return "미국";
   if (lower.includes("financial times")) return "영국";
+  if (lower.includes("the guardian")) return "영국";
   if (lower.includes("euractiv")) return "EU/유럽";
   if (lower.includes("politico")) return "미국/EU";
-  if (lower.includes("korea")) return "한국";
-  if (lower.includes("japan")) return "일본";
+  if (lower.includes("le monde")) return "프랑스";
+  if (lower.includes("handelsblatt")) return "독일";
+  if (lower.includes("el país")) return "스페인";
+  if (lower.includes("korea") || lower.includes("한국")) return "한국";
+  if (lower.includes("japan") || lower.includes("日本")) return "일본";
 
-  return "미확인";
+  return region.countryKo;
 }
 
 function cleanTitle(title: string): string {
@@ -306,41 +416,51 @@ function calculateRelevanceScore(title: string, regulationId: RegulationId): num
   return score;
 }
 
+function getPublishedTime(item: NewsItem): number {
+  const time = new Date(item.publishedAt || 0).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
 export async function fetchGoogleNewsForRegulation(
   regulationId: RegulationId,
-  limit = 5
+  limit = 10
 ): Promise<NewsItem[]> {
   const regulation = REGULATIONS[regulationId];
   const results: NewsItem[] = [];
+  const regions = getRegionsForRegulation(regulationId);
 
-  for (const query of regulation.queries.slice(0, 3)) {
-    try {
-      const items = await fetchGoogleNewsRss(query);
+  for (const region of regions) {
+    for (const query of regulation.queries.slice(0, 4)) {
+      try {
+        const items = await fetchGoogleNewsRss(query, region);
 
-      for (const item of items) {
-        const originalTitle = cleanTitle(item.title);
-        if (!originalTitle || isNoiseNews(originalTitle)) continue;
+        for (const item of items) {
+          const originalTitle = cleanTitle(item.title);
+          if (!originalTitle || isNoiseNews(originalTitle)) continue;
 
-        const source = item.source || "Unknown";
-        const combinedText = `${originalTitle} ${source}`;
+          const source = item.source || "Unknown";
+          const combinedText = `${originalTitle} ${source}`;
 
-        results.push({
-          titleKo: originalTitle,
-          originalTitle,
-          source,
-          sourceCountryKo: sourceCountryKo(source),
-          publishedAt: item.pubDate || "",
-          url: item.link || "",
-          regulationId,
-          regulationName: regulation.name,
-          stakeholderType: classifyStakeholder(combinedText),
-          reactionType: classifyReactionType(combinedText),
-          countryKo: detectCountryKo(combinedText),
-          relevanceScore: calculateRelevanceScore(originalTitle, regulationId),
-        });
+          results.push({
+            titleKo: originalTitle,
+            originalTitle,
+            source,
+            sourceCountryKo: sourceCountryKo(source, item.region),
+            publishedAt: item.pubDate || "",
+            url: item.link || "",
+            regulationId,
+            regulationName: regulation.name,
+            stakeholderType: classifyStakeholder(combinedText),
+            reactionType: classifyReactionType(combinedText),
+            countryKo: detectCountryKo(combinedText, item.region.countryKo),
+            relevanceScore: calculateRelevanceScore(originalTitle, regulationId),
+            languageKo: item.region.languageKo,
+            translationStatus: "번역 대기",
+          });
+        }
+      } catch (error) {
+        console.error(`Google News fetch failed for ${regulationId}`, error);
       }
-    } catch (error) {
-      console.error(`Google News fetch failed for ${regulationId}`, error);
     }
   }
 
@@ -348,19 +468,19 @@ export async function fetchGoogleNewsForRegulation(
     new Map(results.map((item) => [item.url || item.originalTitle, item])).values()
   );
 
-return deduped
-  .sort((a, b) => {
-    const dateA = new Date(a.publishedAt || 0).getTime();
-    const dateB = new Date(b.publishedAt || 0).getTime();
-
-    return dateB - dateA;
-  })
-  .slice(0, limit);
+  return deduped
+    .sort((a, b) => {
+      const dateDiff = getPublishedTime(b) - getPublishedTime(a);
+      if (dateDiff !== 0) return dateDiff;
+      return b.relevanceScore - a.relevanceScore;
+    })
+    .slice(0, limit);
 }
-export async function fetchAllRegulationNews(limit = 5) {
+
+export async function fetchAllRegulationNews(limit = 10) {
   const regulationIds = Object.keys(REGULATIONS) as RegulationId[];
 
-  return Promise.all(
+  const sections = await Promise.all(
     regulationIds.map(async (regulationId) => {
       const news = await fetchGoogleNewsForRegulation(regulationId, limit);
 
@@ -372,4 +492,6 @@ export async function fetchAllRegulationNews(limit = 5) {
       };
     })
   );
+
+  return sections;
 }
