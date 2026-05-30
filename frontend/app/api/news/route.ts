@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       sections,
       allNews,
       count: allNews.length,
-      sort 기준: "publishedAt desc",
+    sortBy: "publishedAt desc",
     });
   } catch (error) {
     console.error("News API failed", error);
