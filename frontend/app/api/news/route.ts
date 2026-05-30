@@ -4,15 +4,30 @@ import {
   fetchGoogleNewsForRegulation,
   REGULATIONS,
   RegulationId,
+  NewsItem,
 } from "@/lib/news/googleNews";
 
 export const dynamic = "force-dynamic";
+
+function getPublishedTime(item: NewsItem) {
+  const time = new Date(item.publishedAt || 0).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function sortNewsByDateDesc(news: NewsItem[]) {
+  return [...news].sort((a, b) => {
+    const dateDiff = getPublishedTime(b) - getPublishedTime(a);
+    if (dateDiff !== 0) return dateDiff;
+
+    return (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
+  });
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const regulationId = searchParams.get("regulationId") as RegulationId | null;
-  const limit = Number(searchParams.get("limit") || 5);
+  const limit = Number(searchParams.get("limit") || 10);
 
   try {
     if (regulationId) {
@@ -23,7 +38,9 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const news = await fetchGoogleNewsForRegulation(regulationId, limit);
+      const news = sortNewsByDateDesc(
+        await fetchGoogleNewsForRegulation(regulationId, limit)
+      );
 
       return NextResponse.json({
         regulationId,
@@ -35,8 +52,21 @@ export async function GET(request: NextRequest) {
 
     const sections = await fetchAllRegulationNews(limit);
 
+    const allNews = sortNewsByDateDesc(
+      sections.flatMap((section) =>
+        section.news.map((item) => ({
+          ...item,
+          regulationId: item.regulationId || section.regulationId,
+          regulationName: item.regulationName || section.regulationName,
+        }))
+      )
+    );
+
     return NextResponse.json({
       sections,
+      allNews,
+      count: allNews.length,
+      sort 기준: "publishedAt desc",
     });
   } catch (error) {
     console.error("News API failed", error);
