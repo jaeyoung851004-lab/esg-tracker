@@ -76,7 +76,7 @@ type RegulationsJson = {
   regulations: OldRegulation[];
 };
 
-const rawRegulations = (regulationsData as RegulationsJson).regulations ?? [];
+const rawRegulations = (regulationsData as unknown as RegulationsJson).regulations ?? [];
 
 const fallbackNews: NewsItem[] = [
   {
