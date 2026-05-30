@@ -10,11 +10,12 @@ import {
 export const dynamic = "force-dynamic";
 
 function getPublishedTime(item: NewsItem) {
-  const time = new Date(item.publishedAt || 0).getTime();
-  return Number.isNaN(time) ? 0 : time;
+  const rawDate = item.publishedAt || "";
+  const time = Date.parse(rawDate);
+  return Number.isFinite(time) ? time : 0;
 }
 
-function sortNewsByDateDesc(news: NewsItem[]) {
+function sortNewsByPublishedAtDesc(news: NewsItem[]) {
   return [...news].sort((a, b) => {
     const dateDiff = getPublishedTime(b) - getPublishedTime(a);
     if (dateDiff !== 0) return dateDiff;
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const news = sortNewsByDateDesc(
+      const news = sortNewsByPublishedAtDesc(
         await fetchGoogleNewsForRegulation(regulationId, limit)
       );
 
@@ -46,13 +47,20 @@ export async function GET(request: NextRequest) {
         regulationId,
         regulationName: REGULATIONS[regulationId].name,
         count: news.length,
+        sortBy: "publishedAt desc",
         news,
       });
     }
 
-    const sections = await fetchAllRegulationNews(limit);
+    const rawSections = await fetchAllRegulationNews(limit);
 
-    const allNews = sortNewsByDateDesc(
+    const sections = rawSections.map((section) => ({
+      ...section,
+      news: sortNewsByPublishedAtDesc(section.news || []),
+      count: section.news?.length || 0,
+    }));
+
+    const allNews = sortNewsByPublishedAtDesc(
       sections.flatMap((section) =>
         section.news.map((item) => ({
           ...item,
@@ -66,7 +74,7 @@ export async function GET(request: NextRequest) {
       sections,
       allNews,
       count: allNews.length,
-    sortBy: "publishedAt desc",
+      sortBy: "publishedAt desc",
     });
   } catch (error) {
     console.error("News API failed", error);
