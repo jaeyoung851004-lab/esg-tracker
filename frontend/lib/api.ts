@@ -315,11 +315,11 @@ const res = await fetch(
       data?.news?.length ?? 0
     );
 
-    return data.news ?? fallbackNews;
-  } catch (error) {
-    console.error("getNews failed:", error);
-    return fallbackNews;
-  }
+  if (data.sections) {
+  return data.sections.flatMap((section: any) => section.news);
+}
+
+return data.news ?? fallbackNews;
 }
 export async function getStats(): Promise<DashboardStats> {
   const total = fallbackRegulations.length || 1;
