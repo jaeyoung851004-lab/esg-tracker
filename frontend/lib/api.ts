@@ -271,7 +271,7 @@ function convertRegulation(reg: OldRegulation): Regulation {
     name_ko: reg.name_ko,
     name_en: reg.name_en,
 
-    legal: reg.legal,
+  legal: cleanLegal(reg),
     ai_layer: reg.ai_layer,
     news_config: reg.news_config,
     history: reg.history,
