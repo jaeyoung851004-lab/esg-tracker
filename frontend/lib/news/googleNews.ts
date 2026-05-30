@@ -348,10 +348,14 @@ export async function fetchGoogleNewsForRegulation(
     new Map(results.map((item) => [item.url || item.originalTitle, item])).values()
   );
 
-  return deduped
-    .sort((a, b) => b.relevanceScore - a.relevanceScore)
-    .slice(0, limit);
-}
+return deduped
+  .sort((a, b) => {
+    const dateA = new Date(a.publishedAt || 0).getTime();
+    const dateB = new Date(b.publishedAt || 0).getTime();
+
+    return dateB - dateA;
+  })
+  .slice(0, limit);
 
 export async function fetchAllRegulationNews(limit = 5) {
   const regulationIds = Object.keys(REGULATIONS) as RegulationId[];
