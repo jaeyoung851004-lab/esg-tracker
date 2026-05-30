@@ -3,7 +3,7 @@ import { Topbar } from "@/components/topbar";
 import { getNews } from "@/lib/api";
 
 export default async function NewsPage() {
-  const news = await getNews(20);
+  const news = await getNews();
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
