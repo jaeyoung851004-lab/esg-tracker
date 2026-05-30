@@ -60,8 +60,8 @@ export default async function RegulationDetailPage({ params }: { params: { id: s
                 </span>
               )}
             </div>
-            <h1 className="text-2xl font-black text-navy">{reg.name_ko || reg.title}</h1>
-            <p className="mt-1 text-sm text-slate-500">{reg.name_en}</p>
+     <h1 className="text-2xl font-black text-navy">{reg.title}</h1>
+<p className="mt-1 text-sm text-slate-500">{reg.name_en}</p>
             <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500">
               {reg.category && <span>📁 {reg.category}</span>}
               {reg.country && <span>🌍 {reg.country}</span>}
