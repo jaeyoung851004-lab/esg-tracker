@@ -1,5 +1,7 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+
 const navItems = [
   { label: "대시보드", href: "/", badge: null },
   { label: "규제 DB", href: "/regulations", badge: null },
@@ -9,7 +11,7 @@ const navItems = [
 ];
 
 export function Sidebar() {
-  const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
+  const pathname = usePathname();
 
   return (
     <aside className="hidden w-[220px] shrink-0 border-r border-slate-200 bg-white lg:flex lg:min-h-screen lg:flex-col">
@@ -27,7 +29,11 @@ export function Sidebar() {
 
       <nav className="space-y-1 px-3 py-4">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+          const isActive =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
           return (
             <a
               key={item.label}
@@ -39,6 +45,7 @@ export function Sidebar() {
               }`}
             >
               {item.label}
+
               {item.badge && (
                 <span className="ml-auto rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white">
                   {item.badge}
@@ -50,7 +57,10 @@ export function Sidebar() {
       </nav>
 
       <div className="mx-3 mt-2 border-t border-slate-200 pt-4">
-        <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">MY 기업</p>
+        <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+          MY 기업
+        </p>
+
         <button className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-navy">
           Impact ON Co.
           <span className="text-slate-400">∨</span>
