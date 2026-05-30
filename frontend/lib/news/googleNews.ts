@@ -1,7 +1,3 @@
-import Parser from "rss-parser";
-
-const parser = new Parser();
-
 export type RegulationId =
   | "csrd"
   | "cbam"
@@ -28,10 +24,7 @@ export type NewsItem = {
   relevanceScore: number;
 };
 
-export const REGULATIONS: Record<
-  RegulationId,
-  { name: string; queries: string[] }
-> = {
+export const REGULATIONS: Record<RegulationId, { name: string; queries: string[] }> = {
   csrd: {
     name: "CSRD",
     queries: [
@@ -40,7 +33,6 @@ export const REGULATIONS: Record<
       `"CSRD" company response`,
       `"CSRD" audit assurance`,
       `"CSRD" delay`,
-      `"CSRD" global companies`,
     ],
   },
   cbam: {
@@ -49,7 +41,6 @@ export const REGULATIONS: Record<
       `"CBAM"`,
       `"Carbon Border Adjustment Mechanism"`,
       `"CBAM" exporters`,
-      `"CBAM" steel cement aluminum`,
       `"CBAM" reporting obligation`,
     ],
   },
@@ -60,7 +51,6 @@ export const REGULATIONS: Record<
       `"Corporate Sustainability Due Diligence Directive"`,
       `"EU due diligence directive"`,
       `"CSDDD" supply chain`,
-      `"CSDDD" delay`,
     ],
   },
   espr: {
@@ -69,7 +59,6 @@ export const REGULATIONS: Record<
       `"ESPR"`,
       `"Ecodesign for Sustainable Products Regulation"`,
       `"digital product passport"`,
-      `"ESPR" textiles`,
     ],
   },
   eudr: {
@@ -79,7 +68,6 @@ export const REGULATIONS: Record<
       `"EU Deforestation Regulation"`,
       `"EUDR" delay`,
       `"EUDR" compliance`,
-      `"EUDR" coffee cocoa palm oil`,
     ],
   },
   "ai-act": {
@@ -88,7 +76,6 @@ export const REGULATIONS: Record<
       `"EU AI Act"`,
       `"Artificial Intelligence Act" Europe`,
       `"AI Act" compliance`,
-      `"AI Act" companies`,
     ],
   },
   issb: {
@@ -97,7 +84,6 @@ export const REGULATIONS: Record<
       `"ISSB" sustainability disclosure`,
       `"IFRS S1"`,
       `"IFRS S2"`,
-      `"ISSB" climate disclosure`,
     ],
   },
   "sec-climate": {
@@ -106,7 +92,6 @@ export const REGULATIONS: Record<
       `"SEC climate disclosure rule"`,
       `"SEC climate rule"`,
       `"SEC" climate disclosure`,
-      `"climate disclosure rule" companies`,
     ],
   },
   battery: {
@@ -115,7 +100,6 @@ export const REGULATIONS: Record<
       `"EU Battery Regulation"`,
       `"battery passport" EU`,
       `"Battery Regulation" due diligence`,
-      `"EU battery rules"`,
     ],
   },
 };
@@ -136,13 +120,67 @@ const NOISE_KEYWORDS = [
   "sponsored",
 ];
 
+type RawRssItem = {
+  title: string;
+  link: string;
+  pubDate: string;
+  source: string;
+};
+
+function decodeXml(text: string) {
+  return text
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", `"`)
+    .replaceAll("&#39;", "'")
+    .replaceAll("<![CDATA[", "")
+    .replaceAll("]]>", "");
+}
+
+function getTagValue(xml: string, tag: string) {
+  const match = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return decodeXml(match?.[1]?.trim() || "");
+}
+
+function getSourceValue(xml: string) {
+  const match = xml.match(/<source[^>]*>([\s\S]*?)<\/source>/i);
+  return decodeXml(match?.[1]?.trim() || "");
+}
+
+async function fetchGoogleNewsRss(query: string): Promise<RawRssItem[]> {
+  const encodedQuery = encodeURIComponent(`${query} when:30d`);
+  const url = `https://news.google.com/rss/search?q=${encodedQuery}&hl=en-US&gl=US&ceid=US:en`;
+
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Google News RSS failed: ${response.status}`);
+  }
+
+  const xml = await response.text();
+  const itemBlocks = xml.match(/<item>[\s\S]*?<\/item>/gi) || [];
+
+  return itemBlocks.map((itemXml) => ({
+    title: getTagValue(itemXml, "title"),
+    link: getTagValue(itemXml, "link"),
+    pubDate: getTagValue(itemXml, "pubDate"),
+    source: getSourceValue(itemXml),
+  }));
+}
+
 function isNoiseNews(title: string): boolean {
   const lower = title.toLowerCase();
   return NOISE_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
-function classifyStakeholder(title: string): string {
-  const lower = title.toLowerCase();
+function classifyStakeholder(text: string): string {
+  const lower = text.toLowerCase();
 
   if (
     lower.includes("commission") ||
@@ -151,35 +189,27 @@ function classifyStakeholder(title: string): string {
     lower.includes("government") ||
     lower.includes("ministry") ||
     lower.includes("sec")
-  ) {
-    return "정부/규제기관";
-  }
+  ) return "정부/규제기관";
 
   if (
     lower.includes("company") ||
     lower.includes("corporate") ||
     lower.includes("manufacturer") ||
     lower.includes("supplier")
-  ) {
-    return "기업";
-  }
+  ) return "기업";
 
   if (
     lower.includes("investor") ||
     lower.includes("bank") ||
     lower.includes("asset manager") ||
     lower.includes("finance")
-  ) {
-    return "금융/투자자";
-  }
+  ) return "금융/투자자";
 
   if (
     lower.includes("law firm") ||
     lower.includes("legal") ||
     lower.includes("lawyer")
-  ) {
-    return "로펌";
-  }
+  ) return "로펌";
 
   if (
     lower.includes("consulting") ||
@@ -187,89 +217,33 @@ function classifyStakeholder(title: string): string {
     lower.includes("pwc") ||
     lower.includes("ey") ||
     lower.includes("kpmg")
-  ) {
-    return "컨설팅/회계법인";
-  }
+  ) return "컨설팅/회계법인";
 
   if (
     lower.includes("ngo") ||
     lower.includes("civil society") ||
     lower.includes("campaign")
-  ) {
-    return "NGO/시민사회";
-  }
+  ) return "NGO/시민사회";
 
   if (
     lower.includes("association") ||
     lower.includes("industry group") ||
     lower.includes("trade body")
-  ) {
-    return "산업협회";
-  }
+  ) return "산업협회";
 
   return "언론/시장";
 }
 
-function classifyReactionType(title: string): string {
-  const lower = title.toLowerCase();
+function classifyReactionType(text: string): string {
+  const lower = text.toLowerCase();
 
-  if (
-    lower.includes("delay") ||
-    lower.includes("postpone") ||
-    lower.includes("extension")
-  ) {
-    return "시행 지연 요구";
-  }
-
-  if (
-    lower.includes("cost") ||
-    lower.includes("burden") ||
-    lower.includes("expensive")
-  ) {
-    return "비용 부담";
-  }
-
-  if (
-    lower.includes("supply chain") ||
-    lower.includes("supplier") ||
-    lower.includes("exporter")
-  ) {
-    return "공급망 영향";
-  }
-
-  if (
-    lower.includes("legal") ||
-    lower.includes("guidance") ||
-    lower.includes("interpretation")
-  ) {
-    return "법률 해석";
-  }
-
-  if (
-    lower.includes("investor") ||
-    lower.includes("risk") ||
-    lower.includes("finance")
-  ) {
-    return "투자 리스크";
-  }
-
-  if (
-    lower.includes("comply") ||
-    lower.includes("compliance") ||
-    lower.includes("prepare") ||
-    lower.includes("response")
-  ) {
-    return "기업 대응";
-  }
-
-  if (
-    lower.includes("rule") ||
-    lower.includes("regulation") ||
-    lower.includes("directive") ||
-    lower.includes("law")
-  ) {
-    return "규제 변화";
-  }
+  if (lower.includes("delay") || lower.includes("postpone") || lower.includes("extension")) return "시행 지연 요구";
+  if (lower.includes("cost") || lower.includes("burden") || lower.includes("expensive")) return "비용 부담";
+  if (lower.includes("supply chain") || lower.includes("supplier") || lower.includes("exporter")) return "공급망 영향";
+  if (lower.includes("legal") || lower.includes("guidance") || lower.includes("interpretation")) return "법률 해석";
+  if (lower.includes("investor") || lower.includes("risk") || lower.includes("finance")) return "투자 리스크";
+  if (lower.includes("comply") || lower.includes("compliance") || lower.includes("prepare") || lower.includes("response")) return "기업 대응";
+  if (lower.includes("rule") || lower.includes("regulation") || lower.includes("directive") || lower.includes("law")) return "규제 변화";
 
   return "시장 동향";
 }
@@ -306,6 +280,10 @@ function sourceCountryKo(source: string): string {
   return "미확인";
 }
 
+function cleanTitle(title: string): string {
+  return title.replace(/ - [^-]+$/, "").trim();
+}
+
 function calculateRelevanceScore(title: string, regulationId: RegulationId): number {
   const lower = title.toLowerCase();
   const regulation = REGULATIONS[regulationId];
@@ -317,6 +295,7 @@ function calculateRelevanceScore(title: string, regulationId: RegulationId): num
   for (const query of regulation.queries) {
     const cleaned = query.replaceAll('"', "").toLowerCase();
     const parts = cleaned.split(" ");
+
     for (const part of parts) {
       if (part.length > 3 && lower.includes(part)) score += 5;
     }
@@ -327,25 +306,6 @@ function calculateRelevanceScore(title: string, regulationId: RegulationId): num
   return score;
 }
 
-function extractSource(item: any): string {
-  if (item.source?.title) return item.source.title;
-
-  const title = item.title || "";
-  const match = title.match(/ - ([^-]+)$/);
-  if (match?.[1]) return match[1].trim();
-
-  return "Unknown";
-}
-
-function cleanTitle(title: string): string {
-  return title.replace(/ - [^-]+$/, "").trim();
-}
-
-function makeGoogleNewsRssUrl(query: string, limit: number) {
-  const encodedQuery = encodeURIComponent(`${query} when:30d`);
-  return `https://news.google.com/rss/search?q=${encodedQuery}&hl=en-US&gl=US&ceid=US:en`;
-}
-
 export async function fetchGoogleNewsForRegulation(
   regulationId: RegulationId,
   limit = 5
@@ -354,24 +314,22 @@ export async function fetchGoogleNewsForRegulation(
   const results: NewsItem[] = [];
 
   for (const query of regulation.queries.slice(0, 3)) {
-    const url = makeGoogleNewsRssUrl(query, limit);
-
     try {
-      const feed = await parser.parseURL(url);
+      const items = await fetchGoogleNewsRss(query);
 
-      for (const item of feed.items) {
-        const originalTitle = cleanTitle(item.title || "");
+      for (const item of items) {
+        const originalTitle = cleanTitle(item.title);
         if (!originalTitle || isNoiseNews(originalTitle)) continue;
 
-        const source = extractSource(item);
+        const source = item.source || "Unknown";
         const combinedText = `${originalTitle} ${source}`;
 
-        const news: NewsItem = {
+        results.push({
           titleKo: originalTitle,
           originalTitle,
           source,
           sourceCountryKo: sourceCountryKo(source),
-          publishedAt: item.isoDate || item.pubDate || "",
+          publishedAt: item.pubDate || "",
           url: item.link || "",
           regulationId,
           regulationName: regulation.name,
@@ -379,9 +337,7 @@ export async function fetchGoogleNewsForRegulation(
           reactionType: classifyReactionType(combinedText),
           countryKo: detectCountryKo(combinedText),
           relevanceScore: calculateRelevanceScore(originalTitle, regulationId),
-        };
-
-        results.push(news);
+        });
       }
     } catch (error) {
       console.error(`Google News fetch failed for ${regulationId}`, error);
@@ -400,7 +356,7 @@ export async function fetchGoogleNewsForRegulation(
 export async function fetchAllRegulationNews(limit = 5) {
   const regulationIds = Object.keys(REGULATIONS) as RegulationId[];
 
-  const sections = await Promise.all(
+  return Promise.all(
     regulationIds.map(async (regulationId) => {
       const news = await fetchGoogleNewsForRegulation(regulationId, limit);
 
@@ -412,6 +368,4 @@ export async function fetchAllRegulationNews(limit = 5) {
       };
     })
   );
-
-  return sections;
 }
