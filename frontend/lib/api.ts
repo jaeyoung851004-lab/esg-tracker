@@ -296,8 +296,8 @@ export async function getRegulations(): Promise<Regulation[]> {
 
 export async function getNews(): Promise<NewsItem[]> {
   try {
-    const res = await fetch(
-      "https://esg-tracker-p1fulcbnj-jaeyoung851004-4321s-projects.vercel.app/api/news?limit=30",
+const res = await fetch(
+  "/api/news?limit=30",
       {
         cache: "no-store",
       }
