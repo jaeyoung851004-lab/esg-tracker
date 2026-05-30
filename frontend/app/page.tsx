@@ -9,28 +9,24 @@ export default async function DashboardPage() {
   ]);
 
   // 시행 임박 (D-120 이내)
-  const urgent = regulations
-    .filter((r) => typeof r.dDay === "number" && r.dDay >= 0 && r.dDay <= 120)
-    .sort((a, b) => (a.dDay ?? 999) - (b.dDay ?? 999))
-    .slice(0, 3);
+const urgent = regulations
+  .filter((r) => typeof r.dDay === "number")
+  .sort((a, b) => (a.dDay ?? 9999) - (b.dDay ?? 9999))
+  .slice(0, 3);
 
   // 주의 필요
-  const watchlist = regulations
-    .filter(
-      (r) =>
-        r.statusTone === "delayed" ||
-        r.statusTone === "uncertain"
-    )
-    .slice(0, 3);
+const watchlist = regulations
+  .filter(
+    (r) =>
+      r.statusTone === "warning" ||
+      r.statusTone === "delayed" ||
+      r.statusTone === "uncertain" ||
+      r.priority === "높음"
+  )
+  .slice(0, 3);
 
   // 최근 업데이트
-  const recentUpdates = regulations
-    .filter(
-      (r) =>
-        r.statusTone === "partial" ||
-        r.statusTone === "success"
-    )
-    .slice(0, 3);
+ const recentUpdates = regulations.slice(0, 3);
 
   return (
     <div className="flex min-h-screen bg-slate-50">
