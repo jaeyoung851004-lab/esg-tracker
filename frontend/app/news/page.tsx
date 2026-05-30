@@ -46,6 +46,21 @@ function getTitle(item: NewsItem) {
   return item.titleKo || item.title || item.originalTitle || "제목 없음";
 }
 
+function getTime(item: NewsItem) {
+  const rawDate = item.publishedAt || item.date || "";
+  const time = new Date(rawDate).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function sortNewsByDateDesc(news: NewsItem[]) {
+  return [...news].sort((a, b) => {
+    const dateDiff = getTime(b) - getTime(a);
+    if (dateDiff !== 0) return dateDiff;
+
+    return (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
+  });
+}
+
 function getAllSection(sections: NewsSection[]): NewsSection {
   const news = sections.flatMap((section) =>
     section.news.map((item) => ({
@@ -55,12 +70,13 @@ function getAllSection(sections: NewsSection[]): NewsSection {
     }))
   );
 
-return {
-  regulationId: "all",
-  regulationName: "전체",
-  count: news.length,
-  news: news.sort((a, b) => getTime(b) - getTime(a)),
-};
+  return {
+    regulationId: "all",
+    regulationName: "전체",
+    count: news.length,
+    news: sortNewsByDateDesc(news),
+  };
+}
 
 export default function NewsPage() {
   const [sections, setSections] = useState<NewsSection[]>([]);
@@ -77,14 +93,19 @@ export default function NewsPage() {
         const data = await response.json();
 
         if (data.sections) {
-          setSections(data.sections);
+          setSections(
+            data.sections.map((section: NewsSection) => ({
+              ...section,
+              news: sortNewsByDateDesc(section.news || []),
+            }))
+          );
         } else if (data.news) {
           setSections([
             {
               regulationId: data.regulationId || "unknown",
               regulationName: data.regulationName || "뉴스",
               count: data.news.length,
-              news: data.news,
+              news: sortNewsByDateDesc(data.news),
             },
           ]);
         }
@@ -107,15 +128,7 @@ export default function NewsPage() {
     displaySections.find((section) => section.regulationId === activeRegulationId) ||
     displaySections[0];
 
- function getTime(item: NewsItem) {
-  const rawDate = item.publishedAt || item.date || "";
-  const time = new Date(rawDate).getTime();
-  return Number.isNaN(time) ? 0 : time;
-}
-
-const activeNews = [...(activeSection?.news ?? [])].sort((a, b) => {
-  return getTime(b) - getTime(a);
-});
+  const activeNews = sortNewsByDateDesc(activeSection?.news ?? []);
 
   return (
     <div className="flex min-h-screen bg-slate-50">
