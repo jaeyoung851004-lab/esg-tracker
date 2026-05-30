@@ -6,9 +6,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchGoogleNews } from "@/lib/news/googleNews";
 import { getTargetRegions } from "@/lib/news/impactMapper";
-import regulationsRaw from "@/data/regulations.json";
+import regulationsRaw from "../../../../data/regulations.json";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const revalidate = 1800; // 30분
 
 function getRegulations(): any[] {
