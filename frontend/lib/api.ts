@@ -221,7 +221,22 @@ function getReadiness(reg: OldRegulation): number {
 function getPriority(reg: OldRegulation): string {
   return reg.display?.priority || "중간";
 }
+function cleanLegal(reg: OldRegulation): Regulation["legal"] {
+  if (!reg.legal) return undefined;
 
+  const cleanDates: Record<string, { date: string; label: string }> = {};
+
+  Object.entries(reg.legal.dates ?? {}).forEach(([key, value]) => {
+    if (value?.date && value?.label) {
+      cleanDates[key] = value;
+    }
+  });
+
+  return {
+    ...reg.legal,
+    dates: cleanDates,
+  };
+}
 function convertRegulation(reg: OldRegulation): Regulation {
   const statusTone = normalizeStatusTone(reg.display?.status_tone);
   const primarySource = reg.legal?.sources?.[0];
