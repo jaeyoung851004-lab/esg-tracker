@@ -1,0 +1,7 @@
+[
+  {"id":"esrs-e1-6","code":"CSRD","title":"ESRS E1-6 생물다양성 데이터 미수집","category":"공시","country":"EU","industry":"전 산업","status":"대응 필요","statusTone":"danger","deadline":"2026-07-15","dDay":47,"readiness":72,"risk":"매출의 2%","priority":"높음","summary":"CSRD 적용 기업의 지속가능성 보고 범위와 데이터 수집 체계를 점검해야 합니다."},
+  {"id":"csddd-supply-chain","code":"CSDDD","title":"공급망 실사 정책 문서화 필요","category":"공급망","country":"EU","industry":"제조/유통","status":"입법 진행","statusTone":"warning","deadline":"2026-10-27","dDay":120,"readiness":40,"risk":"매출의 5%","priority":"높음","summary":"공급망 인권·환경 실사 정책과 협력사 평가 프로세스 정비가 필요합니다."},
+  {"id":"scope3-category1","code":"CDP 기후","title":"Scope 3 카테고리 1 데이터 검증 누락","category":"기후","country":"Global","industry":"전 산업","status":"시행 중","statusTone":"success","deadline":"2026-12-31","dDay":218,"readiness":65,"risk":"—","priority":"중간","summary":"구매 제품·서비스 배출량 산정 근거와 검증 문서를 정리해야 합니다."},
+  {"id":"k-esg-disclosure","code":"K-ESG","title":"K-ESG 공시 의무화 대응 체계 수립","category":"공시","country":"Korea","industry":"상장사","status":"과태료 부과","statusTone":"danger","deadline":"2026-09-01","dDay":95,"readiness":33,"risk":"과태료","priority":"중간","summary":"국내 공시 의무화에 대비해 책임 부서와 데이터 오너를 지정해야 합니다."},
+  {"id":"sec-climate-rule","code":"SEC","title":"SEC 기후공시 규정 모니터링","category":"기후","country":"US","industry":"미국 상장사","status":"입법 진행","statusTone":"warning","deadline":"2027-01-15","dDay":231,"readiness":18,"risk":"민사제재","priority":"중간","summary":"미국 사업·상장 노출이 있는 기업은 기후 리스크 공시 요건 변동을 추적해야 합니다."}
+]
