@@ -296,15 +296,34 @@ export async function getRegulations(): Promise<Regulation[]> {
 
 export async function getNews(): Promise<NewsItem[]> {
   try {
-    const res = await fetch("/api/news?limit=30", {
-      next: { revalidate: 1800 },
-    });
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000");
 
-    if (!res.ok) return fallbackNews;
+    const res = await fetch(
+      `${baseUrl}/api/news?limit=30`,
+      {
+        cache: "no-store",
+      }
+    );
+
+    if (!res.ok) {
+      console.error("News API error:", res.status);
+      return fallbackNews;
+    }
 
     const data = await res.json();
+
+    console.log(
+      "Loaded news:",
+      data?.news?.length ?? 0
+    );
+
     return data.news ?? fallbackNews;
-  } catch {
+  } catch (error) {
+    console.error("getNews failed:", error);
     return fallbackNews;
   }
 }
