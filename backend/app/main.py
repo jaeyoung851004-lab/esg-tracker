@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-
+import os
 from .data import (
     get_dashboard_stats as build_dashboard_stats,
     list_regulation_summaries,
@@ -16,9 +16,17 @@ from .news import LOOKBACK_DAYS, fetch_all_rss_articles, fetch_regulation_news
 
 app = FastAPI(title="Impact ON ESG Tracker API", version="0.1.0")
 
+# CORS — 환경변수로 추가 origin 지정 가능
+_extra = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    *[o.strip() for o in _extra.split(",") if o.strip()],
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,7 +45,6 @@ def get_regulations(
     status: str | None = None,
 ) -> list[dict]:
     regulations = list_regulation_summaries()
-
     if q:
         query = q.lower()
         regulations = [
@@ -55,17 +62,14 @@ def get_regulations(
                 ]
             ).lower()
         ]
-
     if category:
         regulations = [item for item in regulations if item["category"] == category]
-
     if status:
         regulations = [
             item
             for item in regulations
             if item["statusKey"] == status or item["status"] == status
         ]
-
     return regulations
 
 
@@ -88,7 +92,6 @@ def get_news(
     limit: int = Query(default=20, ge=1, le=60),
 ) -> dict:
     regulations = load_regulations()
-
     if regulation_id:
         for regulation in regulations:
             if regulation["id"] == regulation_id:
@@ -98,7 +101,6 @@ def get_news(
                     lookback_days=LOOKBACK_DAYS,
                 )
         raise HTTPException(status_code=404, detail="Regulation not found")
-
     return fetch_all_rss_articles(
         regulations,
         limit=limit,
