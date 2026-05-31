@@ -113,10 +113,14 @@ def debug_regulations() -> dict:
     regulations = load_regulations()
     if not regulations:
         return {"count": 0, "first": None}
-    r = regulations[0]
+    
+    # CSRD 찾기
+    csrd = next((r for r in regulations if r.get("id") == "csrd"), regulations[0])
+    
     return {
         "count": len(regulations),
-        "first_id": r.get("id"),
-        "search_queries": r.get("search_queries"),
-        "news_config": r.get("news_config"),
+        "csrd_id": csrd.get("id"),
+        "csrd_keys": list(csrd.keys()),
+        "csrd_search_queries": csrd.get("search_queries"),
+        "csrd_news_config": csrd.get("news_config"),
     }
