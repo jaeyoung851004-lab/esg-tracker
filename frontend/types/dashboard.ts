@@ -22,10 +22,7 @@ export interface RegulationLegal {
       label: string;
     }
   >;
-  thresholds?: {
-    scope?: string;
-    exemptions?: string[];
-  };
+  thresholds?: Record<string, string | string[]>;
   sources?: RegulationSource[];
 }
 
@@ -44,12 +41,19 @@ export interface RegulationDisplay {
   status_tone?: string;
   card_date_label?: string;
   card_date_value?: string;
+  card_summary?: string;
   priority?: string;
 }
 
 export interface RegulationActionCheckpoints {
   title?: string;
   items?: string[];
+  [key: string]: string | string[] | undefined;
+}
+
+export interface RegulationCompanyImpactItem {
+  name: string;
+  reason: string;
 }
 
 export interface RegulationCompanyMapping {
@@ -57,6 +61,9 @@ export interface RegulationCompanyMapping {
   company_size?: string[];
   risk_level?: string;
   relevance_note?: string;
+  note?: string;
+  direct?: RegulationCompanyImpactItem[];
+  indirect?: RegulationCompanyImpactItem[];
 }
 
 export interface RegulationNewsConfig {
@@ -67,8 +74,6 @@ export interface RegulationNewsConfig {
 
 export interface Regulation {
   id: string;
-
-  // 현재 Next.js UI용 필드
   code: string;
   title: string;
   category: string;
@@ -77,17 +82,14 @@ export interface Regulation {
   status: string;
   statusTone: string;
   deadline: string;
-  dDay: number;
+  dDay: number | null;
   readiness: number;
   risk: string;
   priority: string;
   summary: string;
-
-  // 구 Streamlit 데이터 호환 필드
   acronym?: string;
   name_ko?: string;
   name_en?: string;
-
   legal?: RegulationLegal;
   ai_layer?: RegulationAiLayer;
   news_config?: RegulationNewsConfig;
@@ -97,20 +99,71 @@ export interface Regulation {
   korean_company_note?: string;
   company_mapping?: RegulationCompanyMapping;
   why_it_matters?: string;
-
-  // 상세 페이지 호환 필드
   key_points?: string[];
   card_date_label?: string;
   card_date_value?: string;
   official_url?: string;
 }
 
+export interface RegulationSummary extends Regulation {
+  region: string;
+  deadlineLabel: string;
+  statusKey: string;
+  sourceCount: number;
+  historyCount: number;
+  newsQueryCount: number;
+}
+
+export interface RegulationDetail extends Regulation {
+  legal: RegulationLegal;
+  ai_layer: RegulationAiLayer;
+  news_config: RegulationNewsConfig;
+  display: RegulationDisplay;
+  action_checkpoints: RegulationActionCheckpoints;
+  company_mapping: RegulationCompanyMapping;
+}
+
 export interface NewsItem {
   id: string;
-  source: string;
   title: string;
-  age: string;
+  titleKo?: string;
+  originalTitle?: string;
   url: string;
+  source: string;
+  sourceRegion?: string;
+  publishedAt: string;
+  age?: string;
+  regulationId: string;
+  relatedRegulationIds?: string[];
+  relatedRegulationNames?: string[];
+  sourceType?: string;
+  actorType?: string;
+  newsType?: string;
+  relevanceScore?: number;
+  importanceScore?: number;
+  summary?: string;
+}
+
+export interface NewsRegulationMeta {
+  id: string;
+  code: string;
+  name: string;
+  count: number;
+}
+
+export interface RegionCount {
+  region: string;
+  count: number;
+}
+
+export interface NewsFeedResponse {
+  items: NewsItem[];
+  count: number;
+  lookbackDays: number;
+  generatedAt: string;
+  regulationId: string | null;
+  availableRegulations: NewsRegulationMeta[];
+  regionCounts: RegionCount[];
 }
 
 export interface DashboardStats {

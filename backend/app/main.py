@@ -1,91 +1,106 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from .data import fetch_global_news, fetch_news, load_regulations
-from .models import DashboardStats, NewsItem, Regulation
 
-app = FastAPI(title="Impact ON ESG Tracker API", version="0.2.0")
+from .data import (
+    get_dashboard_stats as build_dashboard_stats,
+    list_regulation_summaries,
+    load_regulations,
+)
+from .models import (
+    DashboardStats,
+    NewsResponse,
+    RegulationDetail,
+    RegulationSummary,
+)
+from .news import LOOKBACK_DAYS, fetch_all_rss_articles, fetch_regulation_news
+
+app = FastAPI(title="Impact ON ESG Tracker API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
-@app.get("/api/regulations")
+
+@app.get("/api/regulations", response_model=list[RegulationSummary])
 def get_regulations(
     q: str | None = Query(default=None),
     category: str | None = None,
     status: str | None = None,
-    region: str | None = None,
 ) -> list[dict]:
-    regulations = load_regulations()
+    regulations = list_regulation_summaries()
+
     if q:
         query = q.lower()
         regulations = [
-            r for r in regulations
-            if query in (r.get("name_ko","") + r.get("name_en","") + r.get("code","") + r.get("category","") + r.get("summary","")).lower()
+            item
+            for item in regulations
+            if query
+            in " ".join(
+                [
+                    item["code"],
+                    item["title"],
+                    item["category"],
+                    item["region"],
+                    item["industry"],
+                    item["summary"],
+                ]
+            ).lower()
         ]
+
     if category:
-        regulations = [r for r in regulations if r.get("category") == category]
+        regulations = [item for item in regulations if item["category"] == category]
+
     if status:
-        regulations = [r for r in regulations if r.get("status") == status]
-    if region:
-        regulations = [r for r in regulations if r.get("region") == region]
+        regulations = [
+            item
+            for item in regulations
+            if item["statusKey"] == status or item["status"] == status
+        ]
+
     return regulations
 
-@app.get("/api/regulations/{regulation_id}")
+
+@app.get("/api/regulations/{regulation_id}", response_model=RegulationDetail)
 def get_regulation(regulation_id: str) -> dict:
-    for r in load_regulations():
-        if r.get("id") == regulation_id:
-            return r
+    for item in load_regulations():
+        if item["id"] == regulation_id:
+            return item
     raise HTTPException(status_code=404, detail="Regulation not found")
 
-@app.get("/api/regulations/{regulation_id}/news")
-def get_regulation_news(regulation_id: str, limit: int = 10) -> list[dict]:
-    """규제별 실시간 뉴스 수집"""
-    for r in load_regulations():
-        if r.get("id") == regulation_id:
-            queries = r.get("search_queries", [])
-            required = r.get("required_keywords", [])
-            exclude = r.get("exclude_keywords", [])
-            if not queries:
-                # 쿼리 없으면 규제명으로 검색
-                queries = [f"{r.get('code','')} regulation 2026", r.get("name_en", "")]
-            return fetch_news(queries, required, exclude, limit)
-    raise HTTPException(status_code=404, detail="Regulation not found")
 
-@app.get("/api/news")
-def get_news(limit: int = 10) -> list[dict]:
-    """전체 ESG 뉴스 (대시보드용 실시간)"""
-    return fetch_global_news(limit)
+@app.get("/api/dashboard/stats", response_model=DashboardStats)
+def get_dashboard_stats_endpoint() -> dict[str, int]:
+    return build_dashboard_stats()
 
-@app.get("/api/dashboard/stats")
-def get_dashboard_stats() -> dict:
+
+@app.get("/api/news", response_model=NewsResponse)
+def get_news(
+    regulation_id: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=60),
+) -> dict:
     regulations = load_regulations()
-    total = len(regulations)
-    urgent = len([r for r in regulations if isinstance(r.get("dDay"), int) and r["dDay"] <= 120])
-    high_priority = len([r for r in regulations if r.get("priority") == "높음"])
-    readiness_list = [r.get("readiness", 0) for r in regulations if isinstance(r.get("readiness"), int)]
-    average_readiness = round(sum(readiness_list) / len(readiness_list)) if readiness_list else 0
-    return {
-        "totalRegulations": total,
-        "urgentTasks": urgent,
-        "averageReadiness": average_readiness,
-        "highPriority": high_priority,
-    }
 
-@app.get("/api/categories")
-def get_categories() -> list[str]:
-    regs = load_regulations()
-    return sorted(set(r.get("category", "") for r in regs if r.get("category")))
+    if regulation_id:
+        for regulation in regulations:
+            if regulation["id"] == regulation_id:
+                return fetch_regulation_news(
+                    regulation,
+                    limit=limit,
+                    lookback_days=LOOKBACK_DAYS,
+                )
+        raise HTTPException(status_code=404, detail="Regulation not found")
 
-@app.get("/api/regions")
-def get_regions() -> list[str]:
-    regs = load_regulations()
-    return sorted(set(r.get("region", "") for r in regs if r.get("region")))
+    return fetch_all_rss_articles(
+        regulations,
+        limit=limit,
+        lookback_days=LOOKBACK_DAYS,
+    )

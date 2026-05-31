@@ -15,7 +15,9 @@ const statusToneMap: Record<string, string> = {
 };
 
 export function AlertCTA({ regulations }: { regulations: Regulation[] }) {
-  const mostUrgent = regulations.sort((a, b) => a.dDay - b.dDay)[0];
+  const mostUrgent = [...regulations].sort(
+    (a, b) => (a.dDay ?? Number.MAX_SAFE_INTEGER) - (b.dDay ?? Number.MAX_SAFE_INTEGER)
+  )[0];
   if (!mostUrgent) return null;
   return (
     <div className="flex items-center gap-4 rounded-2xl bg-navy px-6 py-4">
@@ -54,7 +56,9 @@ export function PriorityCard({ regulations }: { regulations: Regulation[] }) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-navy truncate">{item.title}</p>
               <p className="mt-0.5 text-xs text-slate-400">
-                <span className="font-bold text-red-500">D-{item.dDay}</span>
+                <span className="font-bold text-red-500">
+                  {typeof item.dDay === "number" ? `D-${item.dDay}` : item.deadline}
+                </span>
                 <span className="mx-2">·</span>
                 {item.deadline.replaceAll("-", ".")}
               </p>
@@ -124,8 +128,12 @@ export function RegulationTable({ regulations }: { regulations: Regulation[] }) 
                   </span>
                 </td>
                 <td className="px-4 py-3.5">
-                  <span className={`font-bold text-sm ${item.dDay <= 120 ? "text-red-500" : "text-slate-500"}`}>
-                    D-{item.dDay}
+                  <span className={`font-bold text-sm ${
+                    typeof item.dDay === "number" && item.dDay <= 120
+                      ? "text-red-500"
+                      : "text-slate-500"
+                  }`}>
+                    {typeof item.dDay === "number" ? `D-${item.dDay}` : item.deadline}
                   </span>
                 </td>
                 <td className="px-4 py-3.5">
