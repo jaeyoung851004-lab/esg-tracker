@@ -66,7 +66,7 @@ export default function NewsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`${getApiBase()}/api/news?limit=60`, {
+     const res = await fetch(`/api/news?limit=60`, {
           cache: "no-store",
         });
         const data = await res.json();
