@@ -39,99 +39,45 @@ SOURCE_REGION_RULES = {
 
 SOURCE_TYPE_RULES = {
     "공식기관": [
-        "eur-lex",
-        "european commission",
-        "european parliament",
-        "council of the eu",
-        "official journal",
-        "efrag",
-        "sec",
-        "carb",
+        "eur-lex", "european commission", "european parliament",
+        "council of the eu", "official journal", "efrag", "sec", "carb",
     ],
     "로펌/자문": [
-        "latham",
-        "white & case",
-        "dla piper",
-        "clifford chance",
-        "baker mckenzie",
-        "linklaters",
-        "freshfields",
-        "norton rose",
-        "lexology",
-        "jd supra",
+        "latham", "white & case", "dla piper", "clifford chance",
+        "baker mckenzie", "linklaters", "freshfields", "norton rose",
+        "lexology", "jd supra",
     ],
     "컨설팅": ["deloitte", "pwc", "ey", "kpmg", "accenture"],
-    "산업협회": [
-        "association",
-        "federation",
-        "industry group",
-        "trade body",
-        "chamber",
-    ],
+    "산업협회": ["association", "federation", "industry group", "trade body", "chamber"],
     "NGO": ["wwf", "greenpeace", "clientearth", "cdp", "somo"],
 }
 
 NEWS_TYPE_RULES = {
     "정책 발표": [
-        "regulation",
-        "directive",
-        "law",
-        "guidance",
-        "delegated act",
-        "implementing act",
-        "published",
-        "adoption",
-        "adopted",
-        "vote",
-        "proposal",
-        "omnibus",
+        "regulation", "directive", "law", "guidance", "delegated act",
+        "implementing act", "published", "adoption", "adopted", "vote",
+        "proposal", "omnibus",
     ],
     "시행 연기": ["delay", "delayed", "postpone", "postponed", "extension"],
     "기업 대응": [
-        "compliance",
-        "comply",
-        "reporting",
-        "prepare",
-        "implementation",
-        "deadline",
+        "compliance", "comply", "reporting", "prepare",
+        "implementation", "deadline",
     ],
     "산업 반응": [
-        "industry",
-        "burden",
-        "cost",
-        "concern",
-        "lobby",
-        "supplier",
-        "supply chain",
+        "industry", "burden", "cost", "concern", "lobby",
+        "supplier", "supply chain",
     ],
     "시장 동향": ["market", "software", "platform", "startup", "tool", "service"],
 }
 
 HIGH_SIGNAL_KEYWORDS = [
-    "implementation",
-    "deadline",
-    "guidance",
-    "delegated act",
-    "vote",
-    "adoption",
-    "adopted",
-    "delay",
-    "compliance",
-    "reporting",
-    "scope 3",
+    "implementation", "deadline", "guidance", "delegated act",
+    "vote", "adoption", "adopted", "delay", "compliance", "reporting", "scope 3",
 ]
 
 LOW_QUALITY_KEYWORDS = [
-    "webinar",
-    "sponsored",
-    "award",
-    "job",
-    "career",
-    "internship",
-    "stock",
-    "share price",
-    "earnings",
-    "annual report",
+    "webinar", "sponsored", "award", "job", "career", "internship",
+    "stock", "share price", "earnings", "annual report",
 ]
 
 SOURCE_IMPORTANCE = {
@@ -145,6 +91,28 @@ SOURCE_IMPORTANCE = {
 
 RawArticle = dict[str, Any]
 NewsArticle = dict[str, Any]
+
+
+def _get_news_config(regulation: dict[str, Any]) -> dict[str, Any]:
+    """news_config가 null이면 빈 dict 반환"""
+    return regulation.get("news_config") or {}
+
+
+def _get_search_queries(regulation: dict[str, Any]) -> list[str]:
+    """news_config.search_queries → fallback: search_queries 직접"""
+    return (
+        _get_news_config(regulation).get("search_queries")
+        or regulation.get("search_queries")
+        or []
+    )
+
+
+def _get_exclude_keywords(regulation: dict[str, Any]) -> list[str]:
+    return (
+        _get_news_config(regulation).get("exclude_keywords")
+        or regulation.get("exclude_keywords")
+        or []
+    )
 
 
 def normalize_whitespace(value: str) -> str:
@@ -162,13 +130,11 @@ def normalize_title_key(title: str) -> str:
 def parse_published_at(raw_value: str) -> datetime | None:
     if not raw_value:
         return None
-
     try:
         parsed = parsedate_to_datetime(raw_value)
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
     except Exception:
         pass
-
     try:
         return datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
     except Exception:
@@ -212,19 +178,16 @@ def detect_news_type(title: str, summary: str) -> str:
     text = f"{title} {summary}".lower()
     best_type = "시장 동향"
     best_score = 0
-
     for news_type, keywords in NEWS_TYPE_RULES.items():
         score = sum(1 for keyword in keywords if keyword in text)
         if score > best_score:
             best_type = news_type
             best_score = score
-
     return best_type
 
 
 def detect_actor_type(source_type: str, news_type: str, text: str) -> str:
     lowered = text.lower()
-
     if source_type == "공식기관":
         return "정부/규제기관"
     if source_type == "NGO":
@@ -243,10 +206,10 @@ def detect_actor_type(source_type: str, news_type: str, text: str) -> str:
 
 
 def build_regulation_terms(regulation: dict[str, Any]) -> list[str]:
-    queries = regulation.get("news_config", {}).get("search_queries", [])[:4]
+    queries = _get_search_queries(regulation)[:4]
     title_ko = regulation.get("name_ko", "")
     title_en = regulation.get("name_en", "")
-    acronym = regulation.get("acronym", "")
+    acronym = regulation.get("acronym", regulation.get("code", ""))
 
     terms = [title_ko, title_en, acronym]
     terms.extend(re.sub(r'"', "", query) for query in queries)
@@ -273,7 +236,8 @@ def score_relevance(
                 if len(part) > 3 and part in text:
                     score += 4
 
-    if regulation.get("acronym", "").lower() in text:
+    acronym = regulation.get("acronym", regulation.get("code", ""))
+    if acronym and acronym.lower() in text:
         score += 15
 
     score += sum(6 for keyword in HIGH_SIGNAL_KEYWORDS if keyword in text)
@@ -335,7 +299,9 @@ def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[Ra
         source = entry.get("source", {}).get("title", "") or "Google News"
         article = {
             "title": normalize_title(entry.get("title", "")),
-            "summary": normalize_whitespace(re.sub(r"<[^>]+>", "", entry.get("summary", "") or "")),
+            "summary": normalize_whitespace(
+                re.sub(r"<[^>]+>", "", entry.get("summary", "") or "")
+            ),
             "url": entry.get("link", ""),
             "source": source,
             "publishedAt": published_at,
@@ -360,6 +326,7 @@ def build_news_item(
     actor_type = detect_actor_type(source_type, news_type, f"{title} {summary}")
     relevance_score = score_relevance(title, summary, source, regulation)
     importance_score = score_importance(source, source_type, news_type, published_at)
+    acronym = regulation.get("acronym", regulation.get("code", regulation["id"]))
 
     return {
         "id": f"{regulation['id']}:{requests.utils.quote(article['url'], safe='')}",
@@ -373,7 +340,9 @@ def build_news_item(
         "age": age_label(published_at),
         "regulationId": regulation["id"],
         "relatedRegulationIds": [regulation["id"]],
-        "relatedRegulationNames": [regulation.get("acronym") or regulation.get("name_ko") or regulation["id"]],
+        "relatedRegulationNames": [
+            acronym or regulation.get("name_ko") or regulation["id"]
+        ],
         "sourceType": source_type,
         "actorType": actor_type,
         "newsType": news_type,
@@ -391,7 +360,6 @@ def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
         if not existing:
             merged_by_url[item["url"]] = item
             continue
-
         existing["relatedRegulationIds"] = sorted(
             set(existing["relatedRegulationIds"]) | set(item["relatedRegulationIds"])
         )
@@ -411,7 +379,6 @@ def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
         if not existing:
             merged_by_title[key] = item
             continue
-
         existing["relatedRegulationIds"] = sorted(
             set(existing["relatedRegulationIds"]) | set(item["relatedRegulationIds"])
         )
@@ -440,11 +407,8 @@ def fetch_regulation_news_items(
     limit: int = 20,
     lookback_days: int = LOOKBACK_DAYS,
 ) -> list[NewsArticle]:
-    queries = regulation.get("news_config", {}).get("search_queries", [])[:4]
-    exclude_keywords = [
-        keyword.lower()
-        for keyword in regulation.get("news_config", {}).get("exclude_keywords", [])
-    ]
+    queries = _get_search_queries(regulation)[:4]
+    exclude_keywords = [k.lower() for k in _get_exclude_keywords(regulation)]
 
     collected: list[NewsArticle] = []
     for query in queries:
@@ -453,7 +417,6 @@ def fetch_regulation_news_items(
                 haystack = f"{article['title']} {article['summary']}".lower()
                 if any(keyword in haystack for keyword in exclude_keywords):
                     continue
-
                 item = build_news_item(article, regulation)
                 if item["relevanceScore"] > 0:
                     collected.append(item)
@@ -468,7 +431,6 @@ def build_region_counts(items: list[NewsArticle]) -> list[dict[str, Any]]:
     for item in items:
         region = item["sourceRegion"] or "기타"
         counts[region] = counts.get(region, 0) + 1
-
     return [
         {"region": region, "count": count}
         for region, count in sorted(counts.items(), key=lambda row: row[1], reverse=True)
@@ -481,6 +443,7 @@ def fetch_regulation_news(
     lookback_days: int = LOOKBACK_DAYS,
 ) -> dict[str, Any]:
     items = fetch_regulation_news_items(regulation, limit=limit, lookback_days=lookback_days)
+    acronym = regulation.get("acronym", regulation.get("code", regulation["id"]))
 
     return {
         "items": items,
@@ -491,7 +454,7 @@ def fetch_regulation_news(
         "availableRegulations": [
             {
                 "id": regulation["id"],
-                "code": regulation.get("acronym", regulation["id"]).upper(),
+                "code": acronym.upper(),
                 "name": regulation.get("name_ko") or regulation.get("name_en") or regulation["id"],
                 "count": len(items),
             }
@@ -516,10 +479,11 @@ def fetch_all_rss_articles(
             lookback_days=lookback_days,
         )
         if items:
+            acronym = regulation.get("acronym", regulation.get("code", regulation["id"]))
             available_regulations.append(
                 {
                     "id": regulation["id"],
-                    "code": regulation.get("acronym", regulation["id"]).upper(),
+                    "code": acronym.upper(),
                     "name": regulation.get("name_ko") or regulation.get("name_en") or regulation["id"],
                     "count": len(items),
                 }
