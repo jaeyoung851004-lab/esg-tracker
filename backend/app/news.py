@@ -417,9 +417,8 @@ def fetch_regulation_news_items(
                 haystack = f"{article['title']} {article['summary']}".lower()
                 if any(keyword in haystack for keyword in exclude_keywords):
                     continue
-                item = build_news_item(article, regulation)
-                if item["relevanceScore"] > 0:
-                    collected.append(item)
+         item = build_news_item(article, regulation)
+collected.append(item)
         except Exception:
             continue
 
