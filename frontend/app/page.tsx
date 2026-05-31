@@ -327,7 +327,7 @@ export default async function DashboardPage() {
                             </span>
                           </td>
                           <td className="max-w-[180px] truncate px-4 py-3 text-xs text-slate-500">{checkpoint}</td>
-                          <td className="px-4 py-3 text-center"><DDayBadge dDay={reg.dDay} /></td>
+                          <td className="px-4 py-3 text-center"><DDayBadge dDay={reg.dDay ?? undefined} /></td>
                         </tr>
                       );
                     })}
