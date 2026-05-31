@@ -50,12 +50,7 @@ function codeColor(code: string) {
   return CODE_COLORS[code] ?? "bg-slate-600";
 }
 
-function getApiBase() {
-  return (
-    process.env.NEXT_PUBLIC_ESG_TRACKER_API_BASE_URL ||
-    "https://esg-tracker.onrender.com"
-  );
-}
+
 
 export default function NewsPage() {
   const [allNews, setAllNews] = useState<NewsItem[]>([]);
