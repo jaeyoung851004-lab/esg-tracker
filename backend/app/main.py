@@ -106,7 +106,9 @@ def get_news(
         limit=limit,
         lookback_days=LOOKBACK_DAYS,
     )
-    @app.get("/api/debug")
+
+
+@app.get("/api/debug")
 def debug_regulations() -> dict:
     regulations = load_regulations()
     if not regulations:
