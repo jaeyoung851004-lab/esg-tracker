@@ -417,8 +417,8 @@ def fetch_regulation_news_items(
                 haystack = f"{article['title']} {article['summary']}".lower()
                 if any(keyword in haystack for keyword in exclude_keywords):
                     continue
-         item = build_news_item(article, regulation)
-collected.append(item)
+                item = build_news_item(article, regulation)
+                collected.append(item)
         except Exception:
             continue
 
@@ -469,7 +469,7 @@ def fetch_all_rss_articles(
 ) -> dict[str, Any]:
     collected: list[NewsArticle] = []
     available_regulations: list[dict[str, Any]] = []
-    per_regulation_limit = max(6, min(limit, 10))
+    per_regulation_limit = 10
 
     for regulation in regulations:
         items = fetch_regulation_news_items(
@@ -489,7 +489,7 @@ def fetch_all_rss_articles(
             )
             collected.extend(items)
 
-    merged_items = dedupe_and_merge(collected)[:limit]
+    merged_items = dedupe_and_merge(collected)[:100]
 
     return {
         "items": merged_items,
