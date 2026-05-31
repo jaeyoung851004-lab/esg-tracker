@@ -268,3 +268,60 @@ def fetch_global_news(limit: int = 10) -> list[dict]:
     required = ["ESG", "regulation", "directive", "CSRD", "CSDDD", "CBAM", "ESPR", "sustainability", "disclosure"]
     exclude = ["stock", "earnings", "share price", "quarterly results"]
     return fetch_news(queries, required, exclude, limit)
+    
+def get_dashboard_stats() -> dict:
+    """대시보드 통계"""
+    regulations = load_regulations()
+    total = len(regulations)
+    
+    active_or_phased = sum(
+        1 for r in regulations
+        if r.get("statusTone") in ("success", "partial")
+    )
+    watch_items = sum(
+        1 for r in regulations
+        if r.get("statusTone") in ("delayed", "uncertain", "warning")
+    )
+    news_enabled = sum(
+        1 for r in regulations
+        if r.get("search_queries")
+    )
+
+    return {
+        "totalRegulations": total,
+        "activeOrPhased": active_or_phased,
+        "watchItems": watch_items,
+        "officialSources": total,
+        "newsEnabled": news_enabled,
+    }
+
+def list_regulation_summaries() -> list[dict]:
+    """규제 요약 목록 (API용)"""
+    regulations = load_regulations()
+    result = []
+    for r in regulations:
+        result.append({
+            "id": r.get("id", ""),
+            "code": r.get("code", ""),
+            "title": r.get("name_ko", r.get("title", "")),
+            "titleEn": r.get("name_en", ""),
+            "category": r.get("category", ""),
+            "region": r.get("region", "eu"),
+            "industry": r.get("industry", "전 산업"),
+            "status": r.get("status", ""),
+            "statusKey": r.get("statusTone", ""),
+            "statusTone": r.get("statusTone", ""),
+            "deadline": r.get("deadline", ""),
+            "deadlineLabel": r.get("card_date_label", ""),
+            "dDay": r.get("dDay"),
+            "risk": r.get("risk", ""),
+            "priority": r.get("priority", "중간"),
+            "summary": r.get("summary", ""),
+            "whyItMatters": r.get("summary", ""),
+            "affectedIndustries": [],
+            "sourceCount": 1,
+            "historyCount": 0,
+            "checkpointCount": 0,
+            "newsQueryCount": len(r.get("search_queries", [])),
+        })
+    return result
