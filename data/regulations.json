@@ -2201,16 +2201,14 @@
           "source_org": "EUR-Lex"
         }
       ],
-      "display": {
+        "display": {
         "status": "phased",
         "status_label": "🔵 단계적 시행",
         "card_summary": "ESPR에 따른 제품 지속가능성 정보 디지털 공개 의무 — 독립 규정 아님, 품목별 위임입법 채택 후 순차 적용",
         "card_date_label": "배터리 DBP 선행 적용",
         "card_date_value": "2027-02-18 / 기타 품목 미정"
       }
-    }
-  ]
-  },
+    },
     {
       "id": "eu_elv",
       "acronym": "ELV",
