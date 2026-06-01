@@ -58,7 +58,9 @@ function codeColor(code: string) {
   return CODE_COLORS[code] ?? "bg-slate-600";
 }
 
-
+function matchesPrimaryRegulation(item: NewsItem, regulationId: string) {
+  return item.regulationId === regulationId;
+}
 
 export default function NewsPage() {
   const [allNews, setAllNews] = useState<NewsItem[]>([]);
@@ -86,16 +88,12 @@ export default function NewsPage() {
 
       // regulations.json 전체 기준으로 탭 고정
       const allRegs: RegulationBase[] = regData.regulations || [];
-      const countMap: Record<string, number> = {};
-      for (const r of (newsData.availableRegulations || [])) {
-        countMap[r.id] = r.count;
-      }
       setRegulations(
         allRegs.map((r) => ({
           id: r.id,
           code: r.acronym,
           name: r.name_ko,
-          count: countMap[r.id] ?? 0,   // 뉴스 없으면 0 표시
+          count: 0,
         }))
       );
     } catch (e) {
@@ -109,19 +107,20 @@ export default function NewsPage() {
 
   const filtered = useMemo(() => {
     if (activeTab === "all") return allNews;
-    return allNews.filter((item) => (
-      item.regulationId === activeTab ||
-      item.relatedRegulationIds?.includes(activeTab)
-    ));
+    return allNews.filter((item) => matchesPrimaryRegulation(item, activeTab));
   }, [allNews, activeTab]);
 
-  const totalByTab = useMemo(() => {
+  const tabCounts = useMemo(() => {
     const map: Record<string, number> = { all: allNews.length };
     for (const reg of regulations) {
-      map[reg.id] = reg.count;
+      map[reg.id] = allNews.filter((item) => matchesPrimaryRegulation(item, reg.id)).length;
     }
     return map;
   }, [allNews, regulations]);
+
+  const codeByRegulationId = useMemo(() => (
+    Object.fromEntries(regulations.map((reg) => [reg.id, reg.code]))
+  ), [regulations]);
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -151,9 +150,11 @@ export default function NewsPage() {
                   activeTab === "all" ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                전체 <span className="opacity-70">{totalByTab["all"] ?? 0}</span>
+                전체 <span className="opacity-70">{tabCounts["all"] ?? 0}</span>
               </button>
-              {regulations.map((reg) => (
+              {regulations.map((reg) => {
+                const count = tabCounts[reg.id] ?? 0;
+                return (
   <button
     key={reg.id}
     type="button"
@@ -161,15 +162,16 @@ export default function NewsPage() {
     className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
       activeTab === reg.id
         ? "bg-navy text-white"
-        : reg.count === 0
+        : count === 0
         ? "bg-slate-100 text-slate-400 hover:bg-slate-200"  // 0건은 흐리게
         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
     }`}
   >
     {reg.code}{" "}
-    <span className="opacity-70">{reg.count}</span>
+    <span className="opacity-70">{count}</span>
   </button>
-))}
+                );
+              })}
             </div>
           </div>
 
@@ -178,7 +180,7 @@ export default function NewsPage() {
             {[
               { label: "선택 규제", value: activeTab === "all" ? "전체" : regulations.find(r => r.id === activeTab)?.code ?? activeTab },
               { label: "표시 기사", value: `${filtered.length}건` },
-              { label: "시행/단계 적용", value: `${regulations.filter(r => r.count > 0).length}개` },
+              { label: "시행/단계 적용", value: `${regulations.filter(r => (tabCounts[r.id] ?? 0) > 0).length}개` },
               { label: "데이터 기준", value: "Google News RSS · 최근 30일" },
             ].map((card) => (
               <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -224,7 +226,7 @@ export default function NewsPage() {
                       </tr>
                     ) : (
                       filtered.map((item, idx) => {
-                        const code = item.relatedRegulationNames?.[0] || item.regulationId?.toUpperCase() || "—";
+                        const code = codeByRegulationId[item.regulationId || ""] || item.relatedRegulationNames?.[0] || item.regulationId?.toUpperCase() || "—";
                         return (
                           <tr key={`${item.url}-${idx}`} className="hover:bg-slate-50">
                             <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">

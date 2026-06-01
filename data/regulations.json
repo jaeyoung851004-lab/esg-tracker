@@ -106,6 +106,39 @@
           "ESPR regulation",
           "delegated act"
         ],
+        "positive_keywords": [
+          "ESPR",
+          "ecodesign regulation",
+          "sustainable products",
+          "digital product passport",
+          "delegated act",
+          "working plan"
+        ],
+        "industry_terms": [
+          "textiles",
+          "electronics",
+          "steel",
+          "aluminium",
+          "furniture",
+          "tires",
+          "product design",
+          "supply chain data"
+        ],
+        "negative_keywords": [
+          "stock",
+          "earnings",
+          "share price",
+          "market analysis"
+        ],
+        "trusted_sources": [
+          "European Commission",
+          "EUR-Lex",
+          "Euractiv",
+          "Lexology",
+          "ESG Today"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -315,6 +348,37 @@
           "recycled content packaging",
           "packaging waste"
         ],
+        "positive_keywords": [
+          "PPWR",
+          "Packaging and Packaging Waste Regulation",
+          "packaging waste regulation",
+          "recycled content",
+          "reuse targets",
+          "packaging compliance"
+        ],
+        "industry_terms": [
+          "packaging",
+          "recycled plastic",
+          "food packaging",
+          "cosmetics packaging",
+          "consumer goods",
+          "retailers"
+        ],
+        "negative_keywords": [
+          "stock",
+          "earnings",
+          "share price",
+          "market analysis"
+        ],
+        "trusted_sources": [
+          "Packaging Europe",
+          "European Commission",
+          "EUR-Lex",
+          "Euractiv",
+          "Recycling Today"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -524,6 +588,37 @@
           "sustainability due diligence",
           "Omnibus due diligence"
         ],
+        "positive_keywords": [
+          "CSDDD",
+          "CS3D",
+          "Corporate Sustainability Due Diligence Directive",
+          "supply chain due diligence",
+          "human rights due diligence",
+          "Omnibus"
+        ],
+        "industry_terms": [
+          "supply chain",
+          "suppliers",
+          "human rights",
+          "environmental due diligence",
+          "value chain",
+          "corporate compliance"
+        ],
+        "negative_keywords": [
+          "stock",
+          "earnings",
+          "share price",
+          "market analysis"
+        ],
+        "trusted_sources": [
+          "European Commission",
+          "European Parliament",
+          "Lexology",
+          "JD Supra",
+          "Latham"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -771,6 +866,40 @@
           "Omnibus CSRD",
           "Wave 2"
         ],
+        "positive_keywords": [
+          "CSRD",
+          "ESRS",
+          "double materiality",
+          "sustainability reporting",
+          "assurance",
+          "Omnibus",
+          "reporting burden",
+          "ESG data quality"
+        ],
+        "industry_terms": [
+          "Scope 3",
+          "supply chain data",
+          "corporate reporting systems",
+          "auditors",
+          "large companies",
+          "non-EU companies"
+        ],
+        "negative_keywords": [
+          "stock",
+          "earnings",
+          "share price",
+          "market analysis"
+        ],
+        "trusted_sources": [
+          "EFRAG",
+          "European Commission",
+          "EUR-Lex",
+          "Accountancy Europe",
+          "Lexology",
+          "JD Supra"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -1026,6 +1155,46 @@
           "CBAM certificate",
           "CBAM declarant"
         ],
+        "positive_keywords": [
+          "CBAM",
+          "carbon border adjustment",
+          "carbon border tax",
+          "embedded emissions",
+          "default values",
+          "CBAM certificate",
+          "authorized declarant"
+        ],
+        "industry_terms": [
+          "steel",
+          "aluminium",
+          "cement",
+          "fertilizer",
+          "hydrogen",
+          "exporters",
+          "importers",
+          "carbon cost",
+          "trade impact",
+          "India",
+          "Turkey",
+          "China",
+          "Africa"
+        ],
+        "negative_keywords": [
+          "stock",
+          "earnings",
+          "share price",
+          "market analysis"
+        ],
+        "trusted_sources": [
+          "European Commission",
+          "Carbon Pulse",
+          "Reuters",
+          "Euractiv",
+          "Argus",
+          "Eurometal"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -1242,6 +1411,42 @@
           "DDS deforestation",
           "EUDR compliance"
         ],
+        "positive_keywords": [
+          "EUDR",
+          "deforestation regulation",
+          "due diligence statement",
+          "geolocation",
+          "traceability",
+          "smallholders",
+          "supply chain compliance"
+        ],
+        "industry_terms": [
+          "coffee",
+          "cocoa",
+          "palm oil",
+          "rubber",
+          "cattle",
+          "soy",
+          "wood",
+          "producer countries",
+          "farm plots"
+        ],
+        "negative_keywords": [
+          "stock",
+          "earnings",
+          "share price",
+          "market analysis"
+        ],
+        "trusted_sources": [
+          "European Commission",
+          "Mongabay",
+          "Reuters",
+          "Euractiv",
+          "Forest Trends",
+          "ClientEarth"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -1459,6 +1664,44 @@
           "environmental claims EU",
           "green claims withdrawn"
         ],
+        "positive_keywords": [
+          "Green Claims Directive",
+          "greenwashing",
+          "environmental claims",
+          "sustainability claims",
+          "substantiation",
+          "misleading environmental claims",
+          "claim verification",
+          "EU greenwashing rules"
+        ],
+        "industry_terms": [
+          "consumer protection",
+          "ecolabel",
+          "environmental marketing claims",
+          "green claims verification",
+          "consumer brands",
+          "retail",
+          "advertising"
+        ],
+        "negative_keywords": [
+          "generic product market report",
+          "consumer goods market report",
+          "market analysis",
+          "market size",
+          "forecast",
+          "stock",
+          "earnings"
+        ],
+        "trusted_sources": [
+          "European Commission",
+          "ClientEarth",
+          "ESG Today",
+          "Euractiv",
+          "Latham",
+          "Lexology"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -1466,7 +1709,16 @@
           "earnings",
           "pharmaceutical",
           "drug",
-          "GCD stock"
+          "GCD stock",
+          "IndexBox",
+          "deodorant market analysis",
+          "baby diapers market analysis",
+          "cat food market analysis",
+          "shampoo market analysis",
+          "cleaners market analysis",
+          "collagen peptides market analysis",
+          "waterproof wipes market analysis",
+          "generic consumer goods market reports"
         ]
       },
       "history": [
@@ -1666,6 +1918,39 @@
           "EU AI regulation",
           "AI Act compliance"
         ],
+        "positive_keywords": [
+          "EU AI Act",
+          "Artificial Intelligence Act",
+          "GPAI",
+          "high-risk AI",
+          "AI compliance",
+          "AI governance",
+          "AI Office"
+        ],
+        "industry_terms": [
+          "foundation models",
+          "AI systems",
+          "risk management",
+          "conformity assessment",
+          "providers",
+          "deployers"
+        ],
+        "negative_keywords": [
+          "stock",
+          "earnings",
+          "share price",
+          "market analysis"
+        ],
+        "trusted_sources": [
+          "European Commission",
+          "EU AI Office",
+          "Euractiv",
+          "Reuters",
+          "Lexology",
+          "IAPP"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -1940,7 +2225,11 @@
       "news_config": {
         "search_queries": [
           "EU Battery Regulation digital battery passport 2027",
-          "EU Battery Regulation recycled content carbon footprint compliance"
+          "EU Battery Regulation recycled content carbon footprint compliance",
+          "Digital Battery Passport battery data interoperability",
+          "battery passport carbon footprint data supply chain",
+          "Catena-X battery passport data space",
+          "EU China battery traceability standards"
         ],
         "required_keywords": [
           "battery regulation",
@@ -1950,6 +2239,47 @@
           "battery EU 2023/1542",
           "battery carbon footprint"
         ],
+        "positive_keywords": [
+          "Battery Regulation",
+          "digital battery passport",
+          "Battery Passport",
+          "battery carbon footprint",
+          "battery data",
+          "battery lifecycle tracking",
+          "battery data space",
+          "supply chain traceability"
+        ],
+        "industry_terms": [
+          "Catena-X",
+          "battery data interoperability",
+          "CATL",
+          "BMW",
+          "EU-China battery data standards",
+          "NEV battery lifecycle traceability",
+          "battery traceability platform",
+          "recycled content",
+          "EV batteries"
+        ],
+        "negative_keywords": [
+          "battery price",
+          "battery materials price",
+          "lithium price",
+          "market analysis",
+          "stock",
+          "earnings",
+          "share price"
+        ],
+        "trusted_sources": [
+          "European Commission",
+          "Battery Pass",
+          "Catena-X",
+          "Reuters",
+          "Benchmark",
+          "Battery News",
+          "ESG Today"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -2164,7 +2494,11 @@
           "product passport EU manufacturer compliance",
           "digital battery passport EV battery passport EU",
           "Battery Passport supply chain traceability regulation",
-          "ESPR digital product passport implementation"
+          "ESPR digital product passport implementation",
+          "Digital Product Passport central registry product data standards",
+          "Catena-X product passport data interoperability",
+          "EU China battery traceability platform product data",
+          "CATL BMW battery passport data standards"
         ],
         "required_keywords": [
           "digital product passport",
@@ -2173,6 +2507,46 @@
           "ecodesign passport",
           "ESPR DPP"
         ],
+        "positive_keywords": [
+          "Digital Product Passport",
+          "DPP central registry",
+          "Digital Product Passport registry",
+          "product data standard",
+          "product data interoperability",
+          "Battery Passport",
+          "Digital Battery Passport",
+          "supply chain data interoperability"
+        ],
+        "industry_terms": [
+          "Catena-X",
+          "battery data space",
+          "CATL",
+          "BMW",
+          "China battery traceability platform",
+          "NEV battery lifecycle traceability",
+          "EU-China battery data standards",
+          "battery lifecycle tracking",
+          "battery carbon footprint data"
+        ],
+        "negative_keywords": [
+          "battery price",
+          "battery materials price",
+          "market analysis",
+          "stock",
+          "earnings",
+          "share price",
+          "political party"
+        ],
+        "trusted_sources": [
+          "European Commission",
+          "Battery Pass",
+          "Catena-X",
+          "ESG Today",
+          "Reuters",
+          "Lexology"
+        ],
+        "min_score": 0,
+        "max_items": 30,
         "exclude_keywords": [
           "stock",
           "shares",
@@ -2180,7 +2554,19 @@
           "earnings",
           "drug",
           "pharmaceutical",
-          "DPP stock"
+          "DPP stock",
+          "Democratic Progressive Party",
+          "Taiwan DPP",
+          "Kuomintang",
+          "Lai Ching-te",
+          "William Lai",
+          "Tsai Ing-wen",
+          "DPP lawmaker",
+          "DPP legislator",
+          "Director of Public Prosecutions",
+          "dipeptidyl peptidase",
+          "DPP-4",
+          "DPP IV"
         ]
       },
       "history": [
@@ -2261,7 +2647,15 @@
       "news_config": {
         "search_queries": [
           "EU end-of-life vehicles regulation ELV 2026",
-          "ELV regulation car recycling EU automotive"
+          "ELV regulation car recycling EU automotive",
+          "automotive shredder residue recycled plastic OEM supply chain",
+          "end-of-life vehicle recycled plastics automaker",
+          "ASR plastics automotive recycled content",
+          "American Recycler automotive recycled plastics",
+          "vehicle recycling recycled plastic supply chain",
+          "closed-loop recycling automotive plastics",
+          "car-to-car recycling plastic",
+          "ELV recycled content targets automotive plastics"
         ],
         "required_keywords": [
           "end-of-life vehicles",
@@ -2269,7 +2663,59 @@
           "ELV EU",
           "vehicle recycling regulation"
         ],
-        "exclude_keywords": ["stock", "shares", "NASDAQ", "earnings", "used car", "secondhand"]
+        "positive_keywords": [
+          "EU ELV Regulation",
+          "end-of-life vehicles",
+          "vehicle recycling",
+          "automotive shredder residue",
+          "ASR plastics",
+          "recycled plastics for automotive",
+          "recycled content targets",
+          "closed-loop recycling",
+          "car-to-car recycling"
+        ],
+        "industry_terms": [
+          "dismantlers",
+          "auto recyclers",
+          "automotive recyclers",
+          "traceable recycled materials",
+          "ELV-driven supply chain changes",
+          "OEM recycled plastic sourcing",
+          "Tier 1 recycled plastic sourcing",
+          "automotive plastics"
+        ],
+        "negative_keywords": [
+          "lead acid battery market",
+          "procurement trends",
+          "long-haul trucks",
+          "general automotive market",
+          "market analysis",
+          "stock",
+          "earnings"
+        ],
+        "trusted_sources": [
+          "American Recycler",
+          "Recycling Today",
+          "Plastics Recycling Update",
+          "Resource Recycling",
+          "Auto Recycling World",
+          "Waste Today",
+          "European Commission"
+        ],
+        "min_score": 0,
+        "max_items": 30,
+        "exclude_keywords": [
+          "stock",
+          "shares",
+          "NASDAQ",
+          "earnings",
+          "used car",
+          "secondhand",
+          "lead acid battery market analysis",
+          "World Automotive Lead Acid Battery",
+          "ATF Professional announces",
+          "2026 procurement trends"
+        ]
       },
       "history": [
         {

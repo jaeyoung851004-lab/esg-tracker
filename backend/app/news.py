@@ -10,8 +10,8 @@ import requests
 
 LOOKBACK_DAYS = 30
 MAX_RSS_ENTRIES_PER_QUERY = 50
-PER_REGULATION_TARGET_LIMIT = 20
-MIN_ALL_NEWS_LIMIT = 100
+DEFAULT_PER_REGULATION_LIMIT = 30
+DEFAULT_ALL_NEWS_LIMIT = 150
 MAX_ALL_NEWS_LIMIT = 150
 GOOGLE_NEWS_LOCALES = (
     ("en-US", "US", "US:en"),
@@ -132,20 +132,54 @@ def _get_search_queries(regulation: dict[str, Any]) -> list[str]:
     )
 
 
+def _get_config_list(
+    regulation: dict[str, Any],
+    key: str,
+    legacy_key: str | None = None,
+) -> list[str]:
+    config = _get_news_config(regulation)
+    values = config.get(key) or []
+    if legacy_key:
+        values = [*values, *(config.get(legacy_key) or regulation.get(legacy_key) or [])]
+    return [normalize_whitespace(str(value)) for value in values if str(value).strip()]
+
+
 def _get_exclude_keywords(regulation: dict[str, Any]) -> list[str]:
-    return (
-        _get_news_config(regulation).get("exclude_keywords")
-        or regulation.get("exclude_keywords")
-        or []
-    )
+    return _get_config_list(regulation, "exclude_keywords")
 
 
 def _get_required_keywords(regulation: dict[str, Any]) -> list[str]:
-    return (
-        _get_news_config(regulation).get("required_keywords")
-        or regulation.get("required_keywords")
-        or []
-    )
+    return _get_config_list(regulation, "required_keywords")
+
+
+def _get_positive_keywords(regulation: dict[str, Any]) -> list[str]:
+    return _get_config_list(regulation, "positive_keywords", "required_keywords")
+
+
+def _get_industry_terms(regulation: dict[str, Any]) -> list[str]:
+    return _get_config_list(regulation, "industry_terms")
+
+
+def _get_negative_keywords(regulation: dict[str, Any]) -> list[str]:
+    return _get_config_list(regulation, "negative_keywords")
+
+
+def _get_trusted_sources(regulation: dict[str, Any]) -> list[str]:
+    return _get_config_list(regulation, "trusted_sources")
+
+
+def _get_min_score(regulation: dict[str, Any]) -> int:
+    try:
+        return int(_get_news_config(regulation).get("min_score", 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _get_max_items(regulation: dict[str, Any]) -> int:
+    try:
+        return int(_get_news_config(regulation).get("max_items", DEFAULT_PER_REGULATION_LIMIT))
+    except (TypeError, ValueError):
+        return DEFAULT_PER_REGULATION_LIMIT
 
 
 def normalize_whitespace(value: str) -> str:
@@ -169,6 +203,33 @@ def text_has_keyword(text: str, keyword: str) -> bool:
         return normalized_keyword in text
 
     return re.search(rf"\b{re.escape(normalized_keyword)}\b", text) is not None
+
+
+def keyword_matches(text: str, keywords: list[str]) -> list[str]:
+    return [keyword for keyword in keywords if text_has_keyword(text, keyword)]
+
+
+def score_keywords(
+    text: str,
+    keywords: list[str],
+    exact_score: int,
+    partial_score: int = 0,
+) -> int:
+    score = 0
+    for keyword in keywords:
+        normalized_keyword = normalize_whitespace(keyword).lower()
+        if not normalized_keyword:
+            continue
+        if text_has_keyword(text, normalized_keyword):
+            score += exact_score
+            continue
+        if partial_score:
+            score += sum(
+                partial_score
+                for part in normalized_keyword.split()
+                if len(part) > 3 and text_has_keyword(text, part)
+            )
+    return score
 
 
 def parse_published_at(raw_value: str) -> datetime | None:
@@ -268,42 +329,37 @@ def score_relevance(
     regulation: dict[str, Any],
 ) -> int:
     text = f"{title} {summary}".lower()
+    source_text = source.lower()
     score = 0
 
     for term in build_regulation_terms(regulation):
         if not term:
             continue
         if term in text:
-            score += 18 if len(term) > 10 else 12
+            score += 3 if len(term) > 10 else 2
         else:
             for part in term.split():
-                if len(part) > 3 and part in text:
-                    score += 4
+                if len(part) > 3 and text_has_keyword(text, part):
+                    score += 1
 
     acronym = regulation.get("acronym", regulation.get("code", ""))
-    if acronym and acronym.lower() in text:
-        score += 15
+    if acronym and text_has_keyword(text, acronym.lower()):
+        score += 3
 
-    for keyword in _get_required_keywords(regulation):
-        normalized_keyword = normalize_whitespace(keyword).lower()
-        if not normalized_keyword:
-            continue
-        if normalized_keyword in text:
-            score += 10
-        else:
-            score += sum(
-                2
-                for part in normalized_keyword.split()
-                if len(part) > 3 and part in text
-            )
+    score += score_keywords(text, _get_positive_keywords(regulation), exact_score=3, partial_score=1)
+    score += score_keywords(text, _get_industry_terms(regulation), exact_score=2, partial_score=1)
+    score += score_keywords(text, HIGH_SIGNAL_KEYWORDS, exact_score=1)
+    score -= score_keywords(text, _get_negative_keywords(regulation), exact_score=2)
+    score -= score_keywords(text, LOW_QUALITY_KEYWORDS, exact_score=1)
 
-    score += sum(6 for keyword in HIGH_SIGNAL_KEYWORDS if keyword in text)
-    score -= sum(12 for keyword in LOW_QUALITY_KEYWORDS if keyword in text)
+    if any(keyword.lower() in source_text for keyword in _get_trusted_sources(regulation)):
+        score += 3
 
     source_type = detect_source_type(source)
-    score += SOURCE_IMPORTANCE.get(source_type, 0)
+    if source_type in {"공식기관", "로펌/자문", "컨설팅", "산업협회"}:
+        score += 1
 
-    return max(score, 0)
+    return score
 
 
 def score_importance(
@@ -418,55 +474,56 @@ def build_news_item(
 def is_obvious_false_positive(
     article: RawArticle,
     regulation: dict[str, Any],
+    relevance_score: int | None = None,
 ) -> bool:
     text = f"{article['title']} {article['summary']} {article['source']}".lower()
-    exclude_keywords = [k.lower() for k in _get_exclude_keywords(regulation)]
-
-    if any(text_has_keyword(text, keyword) for keyword in exclude_keywords):
+    if keyword_matches(text, _get_exclude_keywords(regulation)):
         return True
 
-    regulation_id = regulation.get("id", "")
-    real_dpp_terms = [
-        "digital product passport",
-        "product passport",
-        "battery passport",
-        "digital battery passport",
-        "supply chain traceability",
-        "espr",
-        "ecodesign",
-    ]
+    if relevance_score is None:
+        return False
 
-    if regulation_id == "dpp" and not any(term in text for term in real_dpp_terms):
-        dpp_false_positive_terms = [
-            "democratic progressive party",
-            "taiwan dpp",
-            "taiwan's ruling dpp",
-            "kuomintang",
-            "lai ching-te",
-            "william lai",
-            "tsai ing-wen",
-            "dpp lawmaker",
-            "dpp legislator",
-            "director of public prosecutions",
-            "dipeptidyl peptidase",
-            "dpp-4",
-            "dpp iv",
-        ]
-        if any(term in text for term in dpp_false_positive_terms):
-            return True
+    has_positive_signal = bool(
+        keyword_matches(text, _get_positive_keywords(regulation))
+        or keyword_matches(text, _get_industry_terms(regulation))
+    )
+    has_negative_signal = bool(keyword_matches(text, _get_negative_keywords(regulation)))
 
-    if regulation_id == "green_claims":
-        gcd_false_positive_terms = [
-            "gcd stock",
-            "gcd pharma",
-            "gcd therapeutics",
-            "gcd earnings",
-            "greatest common divisor",
-        ]
-        if any(term in text for term in gcd_false_positive_terms):
-            return True
+    if relevance_score <= _get_min_score(regulation) and has_negative_signal and not has_positive_signal:
+        return True
 
     return False
+
+
+def merge_duplicate_item(existing: NewsArticle, item: NewsArticle) -> NewsArticle:
+    related_ids = sorted(
+        set(existing["relatedRegulationIds"]) | set(item["relatedRegulationIds"])
+    )
+    related_names = sorted(
+        set(existing["relatedRegulationNames"]) | set(item["relatedRegulationNames"])
+    )
+
+    if (
+        item["relevanceScore"],
+        item["importanceScore"],
+        item["publishedAt"],
+    ) > (
+        existing["relevanceScore"],
+        existing["importanceScore"],
+        existing["publishedAt"],
+    ):
+        existing["id"] = item["id"]
+        existing["regulationId"] = item["regulationId"]
+
+    existing["relatedRegulationIds"] = related_ids
+    existing["relatedRegulationNames"] = related_names
+    existing["relevanceScore"] = max(existing["relevanceScore"], item["relevanceScore"])
+    existing["importanceScore"] = max(existing["importanceScore"], item["importanceScore"])
+    if item["publishedAt"] > existing["publishedAt"]:
+        existing["publishedAt"] = item["publishedAt"]
+        existing["age"] = item["age"]
+
+    return existing
 
 
 def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
@@ -477,17 +534,7 @@ def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
         if not existing:
             merged_by_url[item["url"]] = item
             continue
-        existing["relatedRegulationIds"] = sorted(
-            set(existing["relatedRegulationIds"]) | set(item["relatedRegulationIds"])
-        )
-        existing["relatedRegulationNames"] = sorted(
-            set(existing["relatedRegulationNames"]) | set(item["relatedRegulationNames"])
-        )
-        existing["relevanceScore"] = max(existing["relevanceScore"], item["relevanceScore"])
-        existing["importanceScore"] = max(existing["importanceScore"], item["importanceScore"])
-        if item["publishedAt"] > existing["publishedAt"]:
-            existing["publishedAt"] = item["publishedAt"]
-            existing["age"] = item["age"]
+        merge_duplicate_item(existing, item)
 
     merged_by_title: dict[str, NewsArticle] = {}
     for item in merged_by_url.values():
@@ -496,23 +543,14 @@ def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
         if not existing:
             merged_by_title[key] = item
             continue
-        existing["relatedRegulationIds"] = sorted(
-            set(existing["relatedRegulationIds"]) | set(item["relatedRegulationIds"])
-        )
-        existing["relatedRegulationNames"] = sorted(
-            set(existing["relatedRegulationNames"]) | set(item["relatedRegulationNames"])
-        )
-        existing["relevanceScore"] = max(existing["relevanceScore"], item["relevanceScore"])
-        existing["importanceScore"] = max(existing["importanceScore"], item["importanceScore"])
-        if item["publishedAt"] > existing["publishedAt"]:
-            merged_by_title[key] = item
+        merge_duplicate_item(existing, item)
 
     deduped = list(merged_by_title.values())
     deduped.sort(
         key=lambda item: (
-            item["publishedAt"],
-            item["importanceScore"],
             item["relevanceScore"],
+            item["importanceScore"],
+            item["publishedAt"],
         ),
         reverse=True,
     )
@@ -525,20 +563,48 @@ def fetch_regulation_news_items(
     lookback_days: int = LOOKBACK_DAYS,
 ) -> list[NewsArticle]:
     queries = _get_search_queries(regulation)
+    item_limit = min(
+        max(limit, _get_max_items(regulation), DEFAULT_PER_REGULATION_LIMIT),
+        MAX_ALL_NEWS_LIMIT,
+    )
 
     collected: list[NewsArticle] = []
     for query in queries:
         try:
             for article in fetch_google_news(query, lookback_days=lookback_days):
-                if is_obvious_false_positive(article, regulation):
-                    continue
                 item = build_news_item(article, regulation)
+                if is_obvious_false_positive(article, regulation, item["relevanceScore"]):
+                    continue
                 collected.append(item)
         except Exception as e:
             print(f"RSS fetch error [{regulation.get('id')}] '{query}': {e}")
             continue
 
-    return dedupe_and_merge(collected)[:limit]
+    return dedupe_and_merge(collected)[:item_limit]
+
+
+def build_available_regulations(
+    regulations: list[dict[str, Any]],
+    items: list[NewsArticle],
+) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    for item in items:
+        regulation_id = item.get("regulationId")
+        if regulation_id:
+            counts[regulation_id] = counts.get(regulation_id, 0) + 1
+
+    available_regulations: list[dict[str, Any]] = []
+    for regulation in regulations:
+        acronym = regulation.get("acronym", regulation.get("code", regulation["id"]))
+        available_regulations.append(
+            {
+                "id": regulation["id"],
+                "code": acronym.upper(),
+                "name": regulation.get("name_ko") or regulation.get("name_en") or regulation["id"],
+                "count": counts.get(regulation["id"], 0),
+            }
+        )
+    return available_regulations
 
 
 def build_region_counts(items: list[NewsArticle]) -> list[dict[str, Any]]:
@@ -584,27 +650,16 @@ def fetch_all_rss_articles(
     lookback_days: int = LOOKBACK_DAYS,
 ) -> dict[str, Any]:
     collected: list[NewsArticle] = []
-    available_regulations: list[dict[str, Any]] = []
-    per_regulation_limit = max(PER_REGULATION_TARGET_LIMIT, 10)
 
     for regulation in regulations:
         items = fetch_regulation_news_items(
             regulation,
-            limit=per_regulation_limit,
+            limit=_get_max_items(regulation),
             lookback_days=lookback_days,
-        )
-        acronym = regulation.get("acronym", regulation.get("code", regulation["id"]))
-        available_regulations.append(
-            {
-                "id": regulation["id"],
-                "code": acronym.upper(),
-                "name": regulation.get("name_ko") or regulation.get("name_en") or regulation["id"],
-                "count": len(items),
-            }
         )
         collected.extend(items)
 
-    merged_limit = min(max(limit, MIN_ALL_NEWS_LIMIT), MAX_ALL_NEWS_LIMIT)
+    merged_limit = min(max(limit, DEFAULT_ALL_NEWS_LIMIT), MAX_ALL_NEWS_LIMIT)
     merged_items = dedupe_and_merge(collected)[:merged_limit]
 
     return {
@@ -613,6 +668,6 @@ def fetch_all_rss_articles(
         "lookbackDays": lookback_days,
         "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "regulationId": None,
-        "availableRegulations": available_regulations,
+        "availableRegulations": build_available_regulations(regulations, merged_items),
         "regionCounts": build_region_counts(merged_items),
     }
