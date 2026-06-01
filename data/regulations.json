@@ -761,7 +761,7 @@
           "CSRD sustainability reporting 2026",
           "ESRS Omnibus corporate reporting EU",
            "CSRD compliance corporate Europe",
-           "sustainability reporting directive update",
+           "sustainability reporting directive update"
         ],
         "required_keywords": [
           "CSRD",
@@ -2210,4 +2210,96 @@
       }
     }
   ]
+  },
+    {
+      "id": "eu_elv",
+      "acronym": "ELV",
+      "name_ko": "EU 폐차 처리 규정",
+      "name_en": "EU End-of-Life Vehicles Regulation",
+      "category": "순환경제",
+      "legal": {
+        "legal_state": "legislative",
+        "political_direction": "stable",
+        "dates": {
+          "proposed": { "date": "2023-07-13", "label": "유럽위원회 초안 제안" },
+          "trilogue": { "date": "2025~2026", "label": "3자 협의(Trilogue) 진행 중" },
+          "application_date": { "date": "미정 (채택 후 ~3년)", "label": "기업 의무 적용 예상" }
+        },
+        "thresholds": {
+          "scope": "EU 시장에 출시되는 승용차(M1) 및 경상용차(N1)",
+          "recycled_content_2030": "차량 플라스틱 부품 내 재생 플라스틱 최소 25% 함량 (2030년 목표, 초안 기준)",
+          "exemptions": ["대형 트럭·버스 등 M2·M3·N2·N3", "오프로드 차량 일부"]
+        },
+        "sources": [
+          {
+            "type": "primary",
+            "org": "European Commission",
+            "label": "ELV 규정 초안 (COM/2023/451)",
+            "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:52023PC0451"
+          }
+        ]
+      },
+      "ai_layer": {
+        "confidence": "low",
+        "confidence_reason": "초안 제안 후 Trilogue 진행 중. 최종 채택·발효 일정 미확정.",
+        "situation_summary": "2000년 폐차 지침(Directive 2000/53/EC)을 대체하는 신규 규정으로, 2023년 7월 유럽위원회가 초안을 제안했습니다. Trilogue 단계로 최종 채택까지 시간이 걸릴 전망.",
+        "key_points": [
+          "기존 폐차 지침(2000/53/EC) → 더 강화된 규정(Regulation)으로 대체",
+          "재생 플라스틱 25% 함량 목표 (초안, 협상 중)",
+          "차량 해체 정보 디지털화 — 부품별 소재·재활용 방법 공개 의무",
+          "Trilogue 진행 중 — 수치·일정 변동 가능성 있음"
+        ],
+        "affected_industries": ["완성차", "자동차 부품", "배터리", "철강·금속", "플라스틱·화학"],
+        "uncertain_items": ["재생 플라스틱 함량 목표 최종 수치", "Trilogue 최종 합의 및 채택 일정"]
+      },
+      "news_config": {
+        "search_queries": [
+          "EU end-of-life vehicles regulation ELV 2026",
+          "ELV regulation car recycling EU automotive"
+        ],
+        "required_keywords": [
+          "end-of-life vehicles",
+          "ELV regulation",
+          "ELV EU",
+          "vehicle recycling regulation"
+        ],
+        "exclude_keywords": ["stock", "shares", "NASDAQ", "earnings", "used car", "secondhand"]
+      },
+      "history": [
+        {
+          "date": "2023-07-13",
+          "event": "유럽위원회 신규 ELV 규정 초안 제안",
+          "source_type": "official",
+          "source_org": "European Commission"
+        },
+        {
+          "date": "2025~2026",
+          "event": "Trilogue(3자 협의) 진행 중",
+          "source_type": "official",
+          "source_org": "European Parliament / Council / Commission"
+        }
+      ],
+      "display": {
+        "status": "legislative",
+        "status_label": "🟡 입법 진행",
+        "card_date_label": "Trilogue",
+        "card_date_value": "2025~2026 진행 중",
+        "card_summary": "폐차 재활용 의무 강화 — 재생 플라스틱 25% 함량·해체 정보 디지털화, Trilogue 협상 중"
+      },
+      "why_it_matters": "EU에 자동차를 판매하는 기업은 차량 재활용 설계 의무, 재생 원료 사용 목표, 해체 정보 공개 의무를 지게 됩니다.",
+      "korean_company_note": "현대차·기아는 EU 판매 차량 설계 변경 직접 필요.",
+      "company_mapping": {
+        "note": "EU 판매 완성차 제조사 및 자동차 부품·소재 공급사 영향.",
+        "direct": [
+          { "name": "현대자동차", "reason": "EU 판매 차량 — 재생 플라스틱 함량·해체 정보 디지털화 직접 적용" },
+          { "name": "기아", "reason": "EU 완성차 — ELV 규정 직접 적용" }
+        ],
+        "indirect": [
+          { "name": "현대모비스", "reason": "자동차 플라스틱·내장재 부품 — 재생 원료 함량 추적 대상" },
+          { "name": "LG에너지솔루션", "reason": "EV 배터리 — ELV·배터리 규정 중복 재활용 요건 대상" }
+        ]
+      }
+    }
+  ]
+}
 }
