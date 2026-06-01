@@ -9,6 +9,14 @@ import feedparser
 import requests
 
 LOOKBACK_DAYS = 30
+MAX_RSS_ENTRIES_PER_QUERY = 50
+PER_REGULATION_TARGET_LIMIT = 20
+MIN_ALL_NEWS_LIMIT = 100
+MAX_ALL_NEWS_LIMIT = 150
+GOOGLE_NEWS_LOCALES = (
+    ("en-US", "US", "US:en"),
+    ("en-GB", "GB", "GB:en"),
+)
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Accept": "application/rss+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -132,6 +140,14 @@ def _get_exclude_keywords(regulation: dict[str, Any]) -> list[str]:
     )
 
 
+def _get_required_keywords(regulation: dict[str, Any]) -> list[str]:
+    return (
+        _get_news_config(regulation).get("required_keywords")
+        or regulation.get("required_keywords")
+        or []
+    )
+
+
 def normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value or "").strip()
 
@@ -142,6 +158,17 @@ def normalize_title(title: str) -> str:
 
 def normalize_title_key(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", normalize_title(title).lower()).strip()
+
+
+def text_has_keyword(text: str, keyword: str) -> bool:
+    normalized_keyword = normalize_whitespace(keyword).lower()
+    if not normalized_keyword:
+        return False
+
+    if re.search(r"\W", normalized_keyword):
+        return normalized_keyword in text
+
+    return re.search(rf"\b{re.escape(normalized_keyword)}\b", text) is not None
 
 
 def parse_published_at(raw_value: str) -> datetime | None:
@@ -223,7 +250,7 @@ def detect_actor_type(source_type: str, news_type: str, text: str) -> str:
 
 
 def build_regulation_terms(regulation: dict[str, Any]) -> list[str]:
-    queries = _get_search_queries(regulation)[:4]
+    queries = _get_search_queries(regulation)
     title_ko = regulation.get("name_ko", "")
     title_en = regulation.get("name_en", "")
     acronym = regulation.get("acronym", regulation.get("code", ""))
@@ -256,6 +283,19 @@ def score_relevance(
     acronym = regulation.get("acronym", regulation.get("code", ""))
     if acronym and acronym.lower() in text:
         score += 15
+
+    for keyword in _get_required_keywords(regulation):
+        normalized_keyword = normalize_whitespace(keyword).lower()
+        if not normalized_keyword:
+            continue
+        if normalized_keyword in text:
+            score += 10
+        else:
+            score += sum(
+                2
+                for part in normalized_keyword.split()
+                if len(part) > 3 and part in text
+            )
 
     score += sum(6 for keyword in HIGH_SIGNAL_KEYWORDS if keyword in text)
     score -= sum(12 for keyword in LOW_QUALITY_KEYWORDS if keyword in text)
@@ -295,37 +335,43 @@ def score_importance(
 
 
 def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[RawArticle]:
-    url = (
-        "https://news.google.com/rss/search"
-        f"?q={requests.utils.quote(query)}"
-        "&hl=en-US&gl=US&ceid=US:en"
-    )
-    response = requests.get(url, headers=HEADERS, timeout=12)
-    response.raise_for_status()
-
-    feed = feedparser.parse(response.content)
     cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
     articles: list[RawArticle] = []
+    query_with_window = f"{query} when:{lookback_days}d"
 
-    for entry in feed.entries[:30]:
-        published_raw = entry.get("published", "") or entry.get("updated", "")
-        published_at = parse_published_at(published_raw)
-        if not published_at or published_at < cutoff:
+    for hl, gl, ceid in GOOGLE_NEWS_LOCALES:
+        url = (
+            "https://news.google.com/rss/search"
+            f"?q={requests.utils.quote(query_with_window)}"
+            f"&hl={hl}&gl={gl}&ceid={ceid}"
+        )
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=12)
+            response.raise_for_status()
+        except Exception as e:
+            print(f"Google News fetch error [{gl}] '{query}': {e}")
             continue
 
-        source = entry.get("source", {}).get("title", "") or "Google News"
-        article = {
-            "title": normalize_title(entry.get("title", "")),
-            "summary": normalize_whitespace(
-                re.sub(r"<[^>]+>", "", entry.get("summary", "") or "")
-            ),
-            "url": entry.get("link", ""),
-            "source": source,
-            "publishedAt": published_at,
-        }
+        feed = feedparser.parse(response.content)
+        for entry in feed.entries[:MAX_RSS_ENTRIES_PER_QUERY]:
+            published_raw = entry.get("published", "") or entry.get("updated", "")
+            published_at = parse_published_at(published_raw)
+            if not published_at or published_at < cutoff:
+                continue
 
-        if article["title"] and article["url"]:
-            articles.append(article)
+            source = entry.get("source", {}).get("title", "") or "Google News"
+            article = {
+                "title": normalize_title(entry.get("title", "")),
+                "summary": normalize_whitespace(
+                    re.sub(r"<[^>]+>", "", entry.get("summary", "") or "")
+                ),
+                "url": entry.get("link", ""),
+                "source": source,
+                "publishedAt": published_at,
+            }
+
+            if article["title"] and article["url"]:
+                articles.append(article)
 
     return articles
 
@@ -367,6 +413,60 @@ def build_news_item(
         "importanceScore": importance_score,
         "summary": summary,
     }
+
+
+def is_obvious_false_positive(
+    article: RawArticle,
+    regulation: dict[str, Any],
+) -> bool:
+    text = f"{article['title']} {article['summary']} {article['source']}".lower()
+    exclude_keywords = [k.lower() for k in _get_exclude_keywords(regulation)]
+
+    if any(text_has_keyword(text, keyword) for keyword in exclude_keywords):
+        return True
+
+    regulation_id = regulation.get("id", "")
+    real_dpp_terms = [
+        "digital product passport",
+        "product passport",
+        "battery passport",
+        "digital battery passport",
+        "supply chain traceability",
+        "espr",
+        "ecodesign",
+    ]
+
+    if regulation_id == "dpp" and not any(term in text for term in real_dpp_terms):
+        dpp_false_positive_terms = [
+            "democratic progressive party",
+            "taiwan dpp",
+            "taiwan's ruling dpp",
+            "kuomintang",
+            "lai ching-te",
+            "william lai",
+            "tsai ing-wen",
+            "dpp lawmaker",
+            "dpp legislator",
+            "director of public prosecutions",
+            "dipeptidyl peptidase",
+            "dpp-4",
+            "dpp iv",
+        ]
+        if any(term in text for term in dpp_false_positive_terms):
+            return True
+
+    if regulation_id == "green_claims":
+        gcd_false_positive_terms = [
+            "gcd stock",
+            "gcd pharma",
+            "gcd therapeutics",
+            "gcd earnings",
+            "greatest common divisor",
+        ]
+        if any(term in text for term in gcd_false_positive_terms):
+            return True
+
+    return False
 
 
 def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
@@ -424,15 +524,13 @@ def fetch_regulation_news_items(
     limit: int = 20,
     lookback_days: int = LOOKBACK_DAYS,
 ) -> list[NewsArticle]:
-    queries = _get_search_queries(regulation)[:4]
-    exclude_keywords = [k.lower() for k in _get_exclude_keywords(regulation)]
+    queries = _get_search_queries(regulation)
 
     collected: list[NewsArticle] = []
     for query in queries:
         try:
             for article in fetch_google_news(query, lookback_days=lookback_days):
-                haystack = f"{article['title']} {article['summary']}".lower()
-                if any(keyword in haystack for keyword in exclude_keywords):
+                if is_obvious_false_positive(article, regulation):
                     continue
                 item = build_news_item(article, regulation)
                 collected.append(item)
@@ -487,7 +585,7 @@ def fetch_all_rss_articles(
 ) -> dict[str, Any]:
     collected: list[NewsArticle] = []
     available_regulations: list[dict[str, Any]] = []
-    per_regulation_limit = 10
+    per_regulation_limit = max(PER_REGULATION_TARGET_LIMIT, 10)
 
     for regulation in regulations:
         items = fetch_regulation_news_items(
@@ -495,19 +593,19 @@ def fetch_all_rss_articles(
             limit=per_regulation_limit,
             lookback_days=lookback_days,
         )
-        if items:
-            acronym = regulation.get("acronym", regulation.get("code", regulation["id"]))
-            available_regulations.append(
-                {
-                    "id": regulation["id"],
-                    "code": acronym.upper(),
-                    "name": regulation.get("name_ko") or regulation.get("name_en") or regulation["id"],
-                    "count": len(items),
-                }
-            )
-            collected.extend(items)
+        acronym = regulation.get("acronym", regulation.get("code", regulation["id"]))
+        available_regulations.append(
+            {
+                "id": regulation["id"],
+                "code": acronym.upper(),
+                "name": regulation.get("name_ko") or regulation.get("name_en") or regulation["id"],
+                "count": len(items),
+            }
+        )
+        collected.extend(items)
 
-    merged_items = dedupe_and_merge(collected)[:100]
+    merged_limit = min(max(limit, MIN_ALL_NEWS_LIMIT), MAX_ALL_NEWS_LIMIT)
+    merged_items = dedupe_and_merge(collected)[:merged_limit]
 
     return {
         "items": merged_items,

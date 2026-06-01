@@ -758,10 +758,10 @@
       },
       "news_config": {
         "search_queries": [
-          "CSRD sustainability reporting 2026",
-          "ESRS Omnibus corporate reporting EU",
-           "CSRD compliance corporate Europe",
-           "sustainability reporting directive update"
+          "CSRD Scope 3 supply chain reporting companies",
+          "ESRS sustainability reporting corporate compliance",
+          "Corporate Sustainability Reporting Directive companies",
+          "CSRD Omnibus reporting requirements Europe"
         ],
         "required_keywords": [
           "CSRD",
@@ -1013,8 +1013,10 @@
       },
       "news_config": {
         "search_queries": [
-          "Carbon Border Adjustment Mechanism CBAM certificate 2027",
-          "CBAM EU carbon border steel aluminium importer"
+          "CBAM steel aluminium exporter compliance cost",
+          "carbon border tax steel industry Europe",
+          "CBAM certificate importer emissions cost",
+          "carbon border adjustment mechanism industry response"
         ],
         "required_keywords": [
           "CBAM",
@@ -1445,8 +1447,10 @@
       },
       "news_config": {
         "search_queries": [
-          "Green Claims Directive EU withdrawn greenwashing 2025",
-          "EU green claims regulation greenwashing law"
+          "green claims directive greenwashing companies Europe",
+          "environmental claims substantiation consumer brands EU",
+          "greenwashing regulation EU consumer brands",
+          "EU green claims directive companies compliance"
         ],
         "required_keywords": [
           "green claims directive",
@@ -2155,8 +2159,12 @@
       },
       "news_config": {
         "search_queries": [
-          "Digital Product Passport EU ESPR regulation 2026",
-          "DPP digital product passport registry ecodesign"
+          "Digital Product Passport EU supply chain traceability",
+          "DPP digital product passport textile electronics",
+          "product passport EU manufacturer compliance",
+          "digital battery passport EV battery passport EU",
+          "Battery Passport supply chain traceability regulation",
+          "ESPR digital product passport implementation"
         ],
         "required_keywords": [
           "digital product passport",

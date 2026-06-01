@@ -15,6 +15,7 @@ type NewsItem = {
   age?: string;
   url?: string;
   regulationId?: string;
+  relatedRegulationIds?: string[];
   relatedRegulationNames?: string[];
   actorType?: string;
   newsType?: string;
@@ -50,6 +51,7 @@ const CODE_COLORS: Record<string, string> = {
   CSRD: "bg-rose-600", CBAM: "bg-violet-600", EUDR: "bg-yellow-600",
   GCD: "bg-lime-600", "AI ACT": "bg-indigo-600", "AI Act": "bg-indigo-600",
   "BATTERY REG": "bg-sky-600", "Battery Reg": "bg-sky-600", DPP: "bg-fuchsia-600",
+  ELV: "bg-amber-600",
 };
 
 function codeColor(code: string) {
@@ -107,7 +109,10 @@ export default function NewsPage() {
 
   const filtered = useMemo(() => {
     if (activeTab === "all") return allNews;
-    return allNews.filter((item) => item.regulationId === activeTab);
+    return allNews.filter((item) => (
+      item.regulationId === activeTab ||
+      item.relatedRegulationIds?.includes(activeTab)
+    ));
   }, [allNews, activeTab]);
 
   const totalByTab = useMemo(() => {
