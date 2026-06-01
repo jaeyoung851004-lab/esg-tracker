@@ -419,7 +419,8 @@ def fetch_regulation_news_items(
                     continue
                 item = build_news_item(article, regulation)
                 collected.append(item)
-        except Exception:
+       except Exception as e:
+            print(f"RSS fetch error [{regulation.get('id')}] '{query}': {e}")
             continue
 
     return dedupe_and_merge(collected)[:limit]
