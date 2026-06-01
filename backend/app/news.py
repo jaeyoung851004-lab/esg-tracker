@@ -20,7 +20,7 @@ SOURCE_REGION_RULES = {
     "european commission": "EU",
     "european parliament": "EU",
     "council of the eu": "EU",
-    "euractiv": "EU",
+    "euractiv": "EU/벨기에",
     "reuters": "글로벌",
     "financial times": "영국",
     "ft.com": "영국",
@@ -35,6 +35,24 @@ SOURCE_REGION_RULES = {
     "esg news": "미국",
     "carbon herald": "글로벌",
     "nikkei": "일본",
+    "korea": "한국",
+    "korean": "한국",
+    "hankyung": "한국",
+    "chosun": "한국",
+    "joongang": "한국",
+    "yonhap": "한국",
+    "impacton": "한국",
+    "vietnam": "베트남",
+    "india": "인도",
+    "china": "중국",
+    "brazil": "브라질",
+    "malaysia": "말레이시아",
+    "indonesia": "인도네시아",
+    "packaging europe": "EU/벨기에",
+    "eurometal": "EU/벨기에",
+    "iflr": "EU/벨기에",
+    "jd supra": "미국",
+    "lexology": "글로벌",
 }
 
 SOURCE_TYPE_RULES = {
@@ -45,11 +63,12 @@ SOURCE_TYPE_RULES = {
     "로펌/자문": [
         "latham", "white & case", "dla piper", "clifford chance",
         "baker mckenzie", "linklaters", "freshfields", "norton rose",
-        "lexology", "jd supra",
+        "lexology", "jd supra", "watson farley", "hogan lovells",
+        "ropes & gray", "dentons",
     ],
     "컨설팅": ["deloitte", "pwc", "ey", "kpmg", "accenture"],
     "산업협회": ["association", "federation", "industry group", "trade body", "chamber"],
-    "NGO": ["wwf", "greenpeace", "clientearth", "cdp", "somo"],
+    "NGO": ["wwf", "greenpeace", "clientearth", "cdp", "somo", "mongabay"],
 }
 
 NEWS_TYPE_RULES = {
@@ -94,12 +113,10 @@ NewsArticle = dict[str, Any]
 
 
 def _get_news_config(regulation: dict[str, Any]) -> dict[str, Any]:
-    """news_config가 null이면 빈 dict 반환"""
     return regulation.get("news_config") or {}
 
 
 def _get_search_queries(regulation: dict[str, Any]) -> list[str]:
-    """news_config.search_queries → fallback: search_queries 직접"""
     return (
         _get_news_config(regulation).get("search_queries")
         or regulation.get("search_queries")
@@ -400,6 +417,7 @@ def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
         reverse=True,
     )
     return deduped
+
 
 def fetch_regulation_news_items(
     regulation: dict[str, Any],
