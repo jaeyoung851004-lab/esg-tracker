@@ -401,7 +401,6 @@ def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
     )
     return deduped
 
-
 def fetch_regulation_news_items(
     regulation: dict[str, Any],
     limit: int = 20,
@@ -419,7 +418,7 @@ def fetch_regulation_news_items(
                     continue
                 item = build_news_item(article, regulation)
                 collected.append(item)
-       except Exception as e:
+        except Exception as e:
             print(f"RSS fetch error [{regulation.get('id')}] '{query}': {e}")
             continue
 
