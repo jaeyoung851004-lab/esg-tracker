@@ -28,6 +28,12 @@ type RegulationMeta = {
   count: number;
 };
 
+type RegulationBase = {
+  id: string;
+  acronym: string;
+  name_ko: string;
+};
+
 function formatDate(date?: string) {
   if (!date) return "";
   try {
@@ -58,28 +64,46 @@ export default function NewsPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      try {
-     const res = await fetch(`/api/news?limit=60`, {
-          cache: "no-store",
-        });
-        const data = await res.json();
-        const items: NewsItem[] = data.items || [];
-        setAllNews(items.sort((a, b) => {
-          const ta = Date.parse(a.publishedAt || "") || 0;
-          const tb = Date.parse(b.publishedAt || "") || 0;
-          return tb - ta;
-        }));
-        setRegulations(data.availableRegulations || []);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+ useEffect(() => {
+  async function load() {
+    try {
+      // 뉴스 + 규제 목록 동시 fetch
+      const [newsRes, regRes] = await Promise.all([
+        fetch(`/api/news?limit=60`, { cache: "no-store" }),
+        fetch(`/api/regulations`, { cache: "no-store" }),
+      ]);
+      const newsData = await newsRes.json();
+      const regData = await regRes.json();
+
+      const items: NewsItem[] = (newsData.items || []).sort((a: NewsItem, b: NewsItem) => {
+        const ta = Date.parse(a.publishedAt || "") || 0;
+        const tb = Date.parse(b.publishedAt || "") || 0;
+        return tb - ta;
+      });
+      setAllNews(items);
+
+      // regulations.json 전체 기준으로 탭 고정
+      const allRegs: RegulationBase[] = regData.regulations || [];
+      const countMap: Record<string, number> = {};
+      for (const r of (newsData.availableRegulations || [])) {
+        countMap[r.id] = r.count;
       }
+      setRegulations(
+        allRegs.map((r) => ({
+          id: r.id,
+          code: r.acronym,
+          name: r.name_ko,
+          count: countMap[r.id] ?? 0,   // 뉴스 없으면 0 표시
+        }))
+      );
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
-    load();
-  }, []);
+  }
+  load();
+}, []);
 
   const filtered = useMemo(() => {
     if (activeTab === "all") return allNews;
@@ -125,17 +149,22 @@ export default function NewsPage() {
                 전체 <span className="opacity-70">{totalByTab["all"] ?? 0}</span>
               </button>
               {regulations.map((reg) => (
-                <button
-                  key={reg.id}
-                  type="button"
-                  onClick={() => setActiveTab(reg.id)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                    activeTab === reg.id ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {reg.code} <span className="opacity-70">{reg.count}</span>
-                </button>
-              ))}
+  <button
+    key={reg.id}
+    type="button"
+    onClick={() => setActiveTab(reg.id)}
+    className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+      activeTab === reg.id
+        ? "bg-navy text-white"
+        : reg.count === 0
+        ? "bg-slate-100 text-slate-400 hover:bg-slate-200"  // 0건은 흐리게
+        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+    }`}
+  >
+    {reg.code}{" "}
+    <span className="opacity-70">{reg.count}</span>
+  </button>
+))}
             </div>
           </div>
 
