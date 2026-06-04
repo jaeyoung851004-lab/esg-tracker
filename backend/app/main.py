@@ -89,7 +89,7 @@ def get_dashboard_stats_endpoint() -> dict[str, int]:
 @app.get("/api/news", response_model=NewsResponse)
 def get_news(
     regulation_id: str | None = Query(default=None),
-    limit: int = Query(default=20, ge=1, le=60),
+    limit: int = Query(default=20, ge=1, le=150),
 ) -> dict:
     regulations = load_regulations()
     if regulation_id:
