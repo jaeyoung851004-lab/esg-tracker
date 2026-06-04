@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import re
+import copy
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import feedparser
 import requests
@@ -13,6 +18,9 @@ MAX_RSS_ENTRIES_PER_QUERY = 50
 DEFAULT_PER_REGULATION_LIMIT = 30
 DEFAULT_ALL_NEWS_LIMIT = 150
 MAX_ALL_NEWS_LIMIT = 150
+RSS_REQUEST_TIMEOUT_SECONDS = 8
+MAX_RSS_QUERY_WORKERS = 8
+NEWS_CACHE_TTL_SECONDS = 20 * 60
 GOOGLE_NEWS_LOCALES = (
     ("en-US", "US", "US:en"),
     ("en-GB", "GB", "GB:en"),
@@ -23,45 +31,143 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-SOURCE_REGION_RULES = {
-    "eur-lex": "EU",
-    "european commission": "EU",
-    "european parliament": "EU",
-    "council of the eu": "EU",
-    "euractiv": "EU/벨기에",
-    "reuters": "글로벌",
-    "financial times": "영국",
-    "ft.com": "영국",
-    "guardian": "영국",
-    "businessgreen": "영국",
-    "bloomberg": "미국",
-    "wall street journal": "미국",
-    "wsj": "미국",
-    "politico": "미국/EU",
-    "trellis": "미국",
-    "esg today": "미국",
-    "esg news": "미국",
-    "carbon herald": "글로벌",
-    "nikkei": "일본",
-    "korea": "한국",
-    "korean": "한국",
-    "hankyung": "한국",
-    "chosun": "한국",
-    "joongang": "한국",
-    "yonhap": "한국",
-    "impacton": "한국",
-    "vietnam": "베트남",
-    "india": "인도",
-    "china": "중국",
-    "brazil": "브라질",
-    "malaysia": "말레이시아",
-    "indonesia": "인도네시아",
-    "packaging europe": "EU/벨기에",
-    "eurometal": "EU/벨기에",
-    "iflr": "EU/벨기에",
-    "jd supra": "미국",
-    "lexology": "글로벌",
-}
+KNOWN_MEDIA_REGION_RULES = (
+    ("mpr china certification", "중국"),
+    ("times of india", "인도"),
+    ("the hindu", "인도"),
+    ("down to earth", "인도"),
+    ("china daily", "중국"),
+    ("wall street journal", "미국"),
+    ("american recycler", "미국"),
+    ("resource recycling", "미국"),
+    ("plastics news", "미국"),
+    ("plasticstoday", "미국"),
+    ("recycling today", "미국"),
+    ("recycling magazine", "독일"),
+    ("packaging europe", "EU/벨기에"),
+    ("recycling international", "네덜란드"),
+    ("auto recycling world", "영국"),
+    ("packaging insights", "EU/유럽"),
+    ("sustainable packaging news", "영국"),
+    ("financial times", "영국"),
+    ("the guardian", "영국"),
+    ("linklaters", "영국"),
+    ("ropes & gray", "미국"),
+    ("bloomberg", "미국"),
+    ("globenewswire", "미국"),
+    ("yahoo finance", "미국"),
+    ("mercom capital", "미국"),
+    ("wwd", "미국"),
+    ("greenbiz", "미국"),
+    ("trellis", "미국"),
+    ("esg today", "미국"),
+    ("esg news", "미국"),
+    ("sustainable views", "영국"),
+    ("grocery trade news", "영국"),
+    ("engineer live", "영국"),
+    ("euronews", "EU/유럽"),
+    ("eurometal", "EU/벨기에"),
+    ("euractiv", "EU/벨기에"),
+    ("fps public health", "EU/벨기에"),
+    ("politico", "미국/EU"),
+    ("mongabay", "미국"),
+    ("reuters", "영국"),
+    ("guardian", "영국"),
+    ("bbc", "영국"),
+    ("wsj", "미국"),
+    ("ft.com", "영국"),
+    ("businessgreen", "영국"),
+    ("jd supra", "미국"),
+    ("lexology", "글로벌 법률/자문"),
+    ("openpr", "글로벌 보도자료"),
+    ("indexbox", "글로벌 시장조사"),
+    ("s&p global", "글로벌 시장정보"),
+    ("kpmg", "글로벌 회계/컨설팅"),
+    ("deloitte", "글로벌 회계/컨설팅"),
+    ("pwc", "글로벌 회계/컨설팅"),
+    ("grant thornton", "글로벌 회계/컨설팅"),
+    ("ey", "글로벌 회계/컨설팅"),
+    ("nikkei", "일본"),
+    ("hankyung", "한국"),
+    ("chosun", "한국"),
+    ("joongang", "한국"),
+    ("yonhap", "한국"),
+    ("impacton", "한국"),
+    ("fibre2fashion", "인도"),
+    ("solarquarter", "인도"),
+    ("al circle", "인도"),
+    ("bizzbuzz", "인도"),
+    ("hktdc", "중국"),
+    ("harianbasis", "인도네시아"),
+    ("nation thailand", "태국"),
+    ("tüv süd", "독일"),
+    ("tuv sud", "독일"),
+    ("taiyangnews", "독일"),
+    ("il sole 24 ore", "이탈리아"),
+    ("notimérica", "스페인/라틴아메리카"),
+    ("notimerica", "스페인/라틴아메리카"),
+    ("agriland", "아일랜드"),
+    ("africa sustainability matters", "아프리카"),
+    ("textile today", "방글라데시"),
+    ("batteries news", "EU/유럽"),
+    ("carbon herald", "미국"),
+    ("eur-lex", "EU"),
+    ("european commission", "EU"),
+    ("european parliament", "EU"),
+    ("council of the eu", "EU"),
+)
+
+TLD_REGION_RULES = (
+    (".co.uk", "영국"),
+    (".org.uk", "영국"),
+    (".ac.uk", "영국"),
+    (".uk", "영국"),
+    (".in", "인도"),
+    (".cn", "중국"),
+    (".kr", "한국"),
+    (".jp", "일본"),
+    (".de", "독일"),
+    (".fr", "프랑스"),
+    (".it", "이탈리아"),
+    (".ie", "아일랜드"),
+    (".bd", "방글라데시"),
+    (".hk", "중국"),
+    (".th", "태국"),
+    (".eu", "EU/유럽"),
+    (".br", "브라질"),
+    (".id", "인도네시아"),
+    (".vn", "베트남"),
+    (".gh", "가나"),
+    (".tr", "터키"),
+    (".ca", "캐나다"),
+    (".au", "호주"),
+)
+
+MEDIA_REGION_KEYWORD_RULES = (
+    ("indiatimes", "인도"),
+    ("thehindu", "인도"),
+    ("downtoearth", "인도"),
+    ("india", "인도"),
+    ("xinhua", "중국"),
+    ("scmp", "중국"),
+    ("china", "중국"),
+    ("korea", "한국"),
+    ("korean", "한국"),
+    ("japan", "일본"),
+    ("brazil", "브라질"),
+    ("globo", "브라질"),
+    ("indonesia", "인도네시아"),
+    ("jakarta", "인도네시아"),
+    ("tempo.co", "인도네시아"),
+    ("vietnam", "베트남"),
+    ("ghana", "가나"),
+    ("turkey", "터키"),
+    ("turkiye", "터키"),
+    ("canada", "캐나다"),
+    ("australia", "호주"),
+    ("europe", "EU/유럽"),
+    ("euro", "EU/유럽"),
+)
 
 SOURCE_TYPE_RULES = {
     "공식기관": [
@@ -119,16 +225,53 @@ SOURCE_IMPORTANCE = {
 RawArticle = dict[str, Any]
 NewsArticle = dict[str, Any]
 
+CacheEntry = dict[str, Any]
+_CACHE_LOCK = threading.RLock()
+_QUERY_ARTICLE_CACHE: dict[tuple[Any, ...], CacheEntry] = {}
+_REGULATION_ITEMS_CACHE: dict[tuple[Any, ...], CacheEntry] = {}
+_ALL_NEWS_CACHE: dict[tuple[Any, ...], CacheEntry] = {}
+
+
+def _cache_get(
+    cache: dict[tuple[Any, ...], CacheEntry],
+    key: tuple[Any, ...],
+    allow_stale: bool = False,
+) -> Any | None:
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        entry = cache.get(key)
+        if not entry:
+            return None
+        if allow_stale or entry["expires_at"] > now:
+            return copy.deepcopy(entry["value"])
+    return None
+
+
+def _cache_set(
+    cache: dict[tuple[Any, ...], CacheEntry],
+    key: tuple[Any, ...],
+    value: Any,
+    ttl_seconds: int = NEWS_CACHE_TTL_SECONDS,
+) -> None:
+    with _CACHE_LOCK:
+        cache[key] = {
+            "expires_at": time.monotonic() + ttl_seconds,
+            "value": copy.deepcopy(value),
+        }
+
 
 def _get_news_config(regulation: dict[str, Any]) -> dict[str, Any]:
     return regulation.get("news_config") or {}
 
 
 def _get_search_queries(regulation: dict[str, Any]) -> list[str]:
-    return (
+    values = (
         _get_news_config(regulation).get("search_queries")
         or regulation.get("search_queries")
         or []
+    )
+    return dedupe_preserve_order(
+        normalize_whitespace(str(value)) for value in values if str(value).strip()
     )
 
 
@@ -186,12 +329,66 @@ def normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value or "").strip()
 
 
+def dedupe_preserve_order(values: list[str] | tuple[str, ...] | Any) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        normalized = normalize_whitespace(str(value))
+        key = normalized.lower()
+        if not normalized or key in seen:
+            continue
+        seen.add(key)
+        result.append(normalized)
+    return result
+
+
 def normalize_title(title: str) -> str:
     return normalize_whitespace(re.sub(r"\s+-\s+[^-]+$", "", title or ""))
 
 
 def normalize_title_key(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", normalize_title(title).lower()).strip()
+
+
+def normalize_article_url_key(url: str) -> str:
+    return re.sub(r"[?#].*$", "", normalize_whitespace(url).lower())
+
+
+def raw_article_key(article: RawArticle) -> str:
+    url_key = normalize_article_url_key(article.get("url", ""))
+    if url_key:
+        return f"url:{url_key}"
+    return f"title:{normalize_title_key(article.get('title', ''))}"
+
+
+def regulation_cache_key(
+    regulation: dict[str, Any],
+    lookback_days: int,
+) -> tuple[Any, ...]:
+    return (
+        "regulation-items",
+        regulation.get("id", ""),
+        tuple(query.lower() for query in _get_search_queries(regulation)),
+        lookback_days,
+    )
+
+
+def all_news_cache_key(
+    regulations: list[dict[str, Any]],
+    lookback_days: int,
+) -> tuple[Any, ...]:
+    return (
+        "all-news",
+        lookback_days,
+        tuple(
+            (
+                regulation.get("id", ""),
+                tuple(query.lower() for query in _get_search_queries(regulation)),
+                _get_max_items(regulation),
+            )
+            for regulation in regulations
+        ),
+    )
 
 
 def text_has_keyword(text: str, keyword: str) -> bool:
@@ -263,10 +460,54 @@ def age_label(published_at: datetime) -> str:
     return published_at.strftime("%Y.%m.%d")
 
 
-def detect_source_region(source: str) -> str:
-    lowered = source.lower()
-    for keyword, region in SOURCE_REGION_RULES.items():
-        if keyword in lowered:
+def extract_domain(url: str) -> str:
+    if not url:
+        return ""
+    try:
+        parsed = urlparse(url if "://" in url else f"https://{url}")
+    except Exception:
+        return ""
+    host = (parsed.netloc or parsed.path).lower().split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    if host in {"google.com", "news.google.com"} or host.endswith(".google.com"):
+        return ""
+    return host
+
+
+def detect_region_from_tld(domain: str) -> str | None:
+    if not domain:
+        return None
+    for suffix, region in TLD_REGION_RULES:
+        if domain.endswith(suffix):
+            return region
+    return None
+
+
+def detect_source_region(
+    source: str,
+    source_url: str = "",
+    article_url: str = "",
+) -> str:
+    source_domain = extract_domain(source_url)
+    article_domain = extract_domain(article_url)
+    searchable = " ".join(
+        part
+        for part in [source, source_domain, source_url, article_domain, article_url]
+        if part
+    ).lower()
+
+    for keyword, region in KNOWN_MEDIA_REGION_RULES:
+        if keyword in searchable:
+            return region
+
+    for domain in [source_domain, article_domain]:
+        tld_region = detect_region_from_tld(domain)
+        if tld_region:
+            return tld_region
+
+    for keyword, region in MEDIA_REGION_KEYWORD_RULES:
+        if keyword in searchable:
             return region
     return "글로벌"
 
@@ -391,9 +632,17 @@ def score_importance(
 
 
 def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[RawArticle]:
+    normalized_query = normalize_whitespace(query)
+    cache_key = ("google-news-query", normalized_query.lower(), lookback_days)
+    cached = _cache_get(_QUERY_ARTICLE_CACHE, cache_key)
+    if cached is not None:
+        return cached
+
     cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
     articles: list[RawArticle] = []
-    query_with_window = f"{query} when:{lookback_days}d"
+    seen_article_keys: set[str] = set()
+    had_request_error = False
+    query_with_window = f"{normalized_query} when:{lookback_days}d"
 
     for hl, gl, ceid in GOOGLE_NEWS_LOCALES:
         url = (
@@ -402,9 +651,10 @@ def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[Ra
             f"&hl={hl}&gl={gl}&ceid={ceid}"
         )
         try:
-            response = requests.get(url, headers=HEADERS, timeout=12)
+            response = requests.get(url, headers=HEADERS, timeout=RSS_REQUEST_TIMEOUT_SECONDS)
             response.raise_for_status()
         except Exception as e:
+            had_request_error = True
             print(f"Google News fetch error [{gl}] '{query}': {e}")
             continue
 
@@ -415,21 +665,59 @@ def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[Ra
             if not published_at or published_at < cutoff:
                 continue
 
-            source = entry.get("source", {}).get("title", "") or "Google News"
+            source_meta = entry.get("source", {}) or {}
+            source = source_meta.get("title", "") or "Google News"
             article = {
                 "title": normalize_title(entry.get("title", "")),
                 "summary": normalize_whitespace(
                     re.sub(r"<[^>]+>", "", entry.get("summary", "") or "")
                 ),
                 "url": entry.get("link", ""),
+                "sourceUrl": source_meta.get("href", "") or source_meta.get("url", ""),
                 "source": source,
                 "publishedAt": published_at,
             }
 
             if article["title"] and article["url"]:
+                article_key = raw_article_key(article)
+                if article_key in seen_article_keys:
+                    continue
+                seen_article_keys.add(article_key)
                 articles.append(article)
 
+    if articles or not had_request_error:
+        _cache_set(_QUERY_ARTICLE_CACHE, cache_key, articles)
+        return articles
+
+    stale = _cache_get(_QUERY_ARTICLE_CACHE, cache_key, allow_stale=True)
+    if stale is not None:
+        return stale
     return articles
+
+
+def fetch_articles_by_query(
+    queries: list[str],
+    lookback_days: int = LOOKBACK_DAYS,
+) -> dict[str, list[RawArticle]]:
+    unique_queries = dedupe_preserve_order(queries)
+    if not unique_queries:
+        return {}
+
+    articles_by_query: dict[str, list[RawArticle]] = {}
+    workers = min(MAX_RSS_QUERY_WORKERS, len(unique_queries))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        future_to_query = {
+            executor.submit(fetch_google_news, query, lookback_days): query
+            for query in unique_queries
+        }
+        for future in as_completed(future_to_query):
+            query = future_to_query[future]
+            try:
+                articles_by_query[query] = future.result()
+            except Exception as e:
+                print(f"RSS query worker error '{query}': {e}")
+                articles_by_query[query] = []
+    return articles_by_query
 
 
 def build_news_item(
@@ -454,7 +742,11 @@ def build_news_item(
         "originalTitle": title,
         "url": article["url"],
         "source": source,
-        "sourceRegion": detect_source_region(source),
+        "sourceRegion": detect_source_region(
+            source,
+            article.get("sourceUrl", ""),
+            article.get("url", ""),
+        ),
         "publishedAt": format_published_at(published_at),
         "age": age_label(published_at),
         "regulationId": regulation["id"],
@@ -557,30 +849,61 @@ def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
     return deduped
 
 
+def build_regulation_news_items_from_articles(
+    regulation: dict[str, Any],
+    articles_by_query: dict[str, list[RawArticle]],
+    limit: int = 20,
+) -> list[NewsArticle]:
+    item_limit = min(
+        max(limit, _get_max_items(regulation), DEFAULT_PER_REGULATION_LIMIT),
+        MAX_ALL_NEWS_LIMIT,
+    )
+    collected: list[NewsArticle] = []
+    seen_raw_article_keys: set[str] = set()
+
+    for query in _get_search_queries(regulation):
+        for article in articles_by_query.get(query, []):
+            article_key = raw_article_key(article)
+            if article_key in seen_raw_article_keys:
+                continue
+            seen_raw_article_keys.add(article_key)
+
+            item = build_news_item(article, regulation)
+            if is_obvious_false_positive(article, regulation, item["relevanceScore"]):
+                continue
+            collected.append(item)
+
+    return dedupe_and_merge(collected)[:item_limit]
+
+
 def fetch_regulation_news_items(
     regulation: dict[str, Any],
     limit: int = 20,
     lookback_days: int = LOOKBACK_DAYS,
 ) -> list[NewsArticle]:
+    cache_key = regulation_cache_key(regulation, lookback_days)
+    cached = _cache_get(_REGULATION_ITEMS_CACHE, cache_key)
+    if cached is not None:
+        return cached[: min(max(limit, _get_max_items(regulation), DEFAULT_PER_REGULATION_LIMIT), MAX_ALL_NEWS_LIMIT)]
+
     queries = _get_search_queries(regulation)
-    item_limit = min(
-        max(limit, _get_max_items(regulation), DEFAULT_PER_REGULATION_LIMIT),
-        MAX_ALL_NEWS_LIMIT,
+    articles_by_query = fetch_articles_by_query(queries, lookback_days=lookback_days)
+    items = build_regulation_news_items_from_articles(
+        regulation,
+        articles_by_query,
+        limit=limit,
     )
 
-    collected: list[NewsArticle] = []
-    for query in queries:
-        try:
-            for article in fetch_google_news(query, lookback_days=lookback_days):
-                item = build_news_item(article, regulation)
-                if is_obvious_false_positive(article, regulation, item["relevanceScore"]):
-                    continue
-                collected.append(item)
-        except Exception as e:
-            print(f"RSS fetch error [{regulation.get('id')}] '{query}': {e}")
-            continue
+    if items:
+        _cache_set(_REGULATION_ITEMS_CACHE, cache_key, items)
+        return items
 
-    return dedupe_and_merge(collected)[:item_limit]
+    stale = _cache_get(_REGULATION_ITEMS_CACHE, cache_key, allow_stale=True)
+    if stale is not None:
+        return stale[: min(max(limit, _get_max_items(regulation), DEFAULT_PER_REGULATION_LIMIT), MAX_ALL_NEWS_LIMIT)]
+
+    _cache_set(_REGULATION_ITEMS_CACHE, cache_key, items)
+    return items
 
 
 def build_available_regulations(
@@ -649,20 +972,38 @@ def fetch_all_rss_articles(
     limit: int = 20,
     lookback_days: int = LOOKBACK_DAYS,
 ) -> dict[str, Any]:
+    cache_key = all_news_cache_key(regulations, lookback_days)
+    cached = _cache_get(_ALL_NEWS_CACHE, cache_key)
+    if cached is not None:
+        return cached
+
     collected: list[NewsArticle] = []
+    all_queries: list[str] = []
 
     for regulation in regulations:
-        items = fetch_regulation_news_items(
-            regulation,
-            limit=_get_max_items(regulation),
-            lookback_days=lookback_days,
-        )
+        all_queries.extend(_get_search_queries(regulation))
+
+    articles_by_query = fetch_articles_by_query(all_queries, lookback_days=lookback_days)
+
+    for regulation in regulations:
+        reg_cache_key = regulation_cache_key(regulation, lookback_days)
+        items = _cache_get(_REGULATION_ITEMS_CACHE, reg_cache_key)
+        if items is None:
+            items = build_regulation_news_items_from_articles(
+                regulation,
+                articles_by_query,
+                limit=_get_max_items(regulation),
+            )
+            if items:
+                _cache_set(_REGULATION_ITEMS_CACHE, reg_cache_key, items)
+            else:
+                items = _cache_get(_REGULATION_ITEMS_CACHE, reg_cache_key, allow_stale=True) or []
         collected.extend(items)
 
     merged_limit = min(max(limit, DEFAULT_ALL_NEWS_LIMIT), MAX_ALL_NEWS_LIMIT)
     merged_items = dedupe_and_merge(collected)[:merged_limit]
 
-    return {
+    response = {
         "items": merged_items,
         "count": len(merged_items),
         "lookbackDays": lookback_days,
@@ -671,3 +1012,13 @@ def fetch_all_rss_articles(
         "availableRegulations": build_available_regulations(regulations, merged_items),
         "regionCounts": build_region_counts(merged_items),
     }
+    if merged_items:
+        _cache_set(_ALL_NEWS_CACHE, cache_key, response)
+        return response
+
+    stale = _cache_get(_ALL_NEWS_CACHE, cache_key, allow_stale=True)
+    if stale is not None:
+        return stale
+
+    _cache_set(_ALL_NEWS_CACHE, cache_key, response)
+    return response
