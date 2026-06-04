@@ -103,10 +103,19 @@
       },
       "news_config": {
         "search_queries": [
-          "ESPR ecodesign sustainable products regulation",
-          "Ecodesign Sustainable Products Regulation delegated acts 2026",
-          "ESPR working plan delegated acts",
-          "EU ecodesign rules sustainable products"
+          "ESPR",
+          "Ecodesign for Sustainable Products Regulation",
+          "EU ecodesign regulation",
+          "EU sustainable products regulation",
+          "ESPR working plan",
+          "ESPR delegated acts",
+          "ecodesign requirements textiles EU",
+          "ecodesign requirements steel EU",
+          "ecodesign requirements furniture EU",
+          "ecodesign requirements tires EU",
+          "unsold consumer products ESPR",
+          "product sustainability requirements EU",
+          "sustainable product rules EU"
         ],
         "required_keywords": [
           "ecodesign",
@@ -117,11 +126,20 @@
         ],
         "positive_keywords": [
           "ESPR",
+          "Ecodesign for Sustainable Products Regulation",
           "ecodesign regulation",
           "sustainable products",
           "delegated act",
           "working plan",
-          "ecodesign working plan"
+          "ecodesign working plan",
+          "ESPR working plan",
+          "product sustainability requirements",
+          "unsold consumer products",
+          "destruction of unsold goods",
+          "ecodesign requirements",
+          "textile ecodesign",
+          "steel ecodesign",
+          "furniture ecodesign"
         ],
         "industry_terms": [
           "textiles",
@@ -157,7 +175,10 @@
           "therapeutics",
           "drug",
           "inducement",
-          "options chain"
+          "options chain",
+          "share price",
+          "market forecast",
+          "generic product market report"
         ]
       },
       "history": [
