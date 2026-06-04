@@ -14,7 +14,7 @@ from .models import (
 )
 from .news import LOOKBACK_DAYS, fetch_all_rss_articles, fetch_regulation_news
 
-app = FastAPI(title="Impact ON ESG Tracker API", version="0.1.0")
+app = FastAPI(title="Impact ON ESG Tracker API", version="0.1.1")
 
 # CORS — 환경변수로 추가 origin 지정 가능
 _extra = os.getenv("ALLOWED_ORIGINS", "")
