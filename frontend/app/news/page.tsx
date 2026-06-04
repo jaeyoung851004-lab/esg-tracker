@@ -19,6 +19,7 @@ type NewsItem = {
   relatedRegulationNames?: string[];
   actorType?: string;
   newsType?: string;
+  reactionType?: string;
   relevanceScore?: number;
 };
 
@@ -33,6 +34,21 @@ type RegulationBase = {
   id: string;
   acronym: string;
   name_ko: string;
+};
+
+type CountByRegion = {
+  region: string;
+  count: number;
+};
+
+type CountByType = {
+  type: string;
+  count: number;
+};
+
+type CountBySource = {
+  source: string;
+  count: number;
 };
 
 function formatDate(date?: string) {
@@ -60,6 +76,30 @@ function codeColor(code: string) {
 
 function matchesPrimaryRegulation(item: NewsItem, regulationId: string) {
   return item.regulationId === regulationId;
+}
+
+function buildCounts<T extends "region" | "type" | "source">(
+  items: NewsItem[],
+  key: T,
+  getValue: (item: NewsItem) => string | undefined
+): Array<Record<T, string> & { count: number }> {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const value = getValue(item)?.trim() || "기타";
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([value, count]) => ({ [key]: value, count } as Record<T, string> & { count: number }));
+}
+
+function formatTopList<T extends CountByRegion | CountByType | CountBySource>(
+  rows: T[],
+  key: keyof T
+) {
+  const top = rows.slice(0, 3);
+  if (top.length === 0) return "데이터 없음";
+  return top.map((row) => `${String(row[key])} ${row.count}`).join(" · ");
 }
 
 export default function NewsPage() {
@@ -122,6 +162,16 @@ export default function NewsPage() {
     Object.fromEntries(regulations.map((reg) => [reg.id, reg.code]))
   ), [regulations]);
 
+  const insightCounts = useMemo(() => {
+    const reactionTypeCounts = buildCounts(filtered, "type", (item) => item.reactionType || item.newsType || "기타");
+    return {
+      regionCounts: buildCounts(filtered, "region", (item) => item.sourceRegion || "글로벌"),
+      reactionTypeCounts,
+      actorTypeCounts: buildCounts(filtered, "type", (item) => item.actorType || "언론/기타"),
+      topSources: buildCounts(filtered, "source", (item) => item.source || "미확인"),
+    };
+  }, [filtered]);
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
@@ -178,10 +228,10 @@ export default function NewsPage() {
           {/* 요약 카드 */}
           <div className="grid gap-4 lg:grid-cols-4">
             {[
-              { label: "선택 규제", value: activeTab === "all" ? "전체" : regulations.find(r => r.id === activeTab)?.code ?? activeTab },
-              { label: "표시 기사", value: `${filtered.length}건` },
-              { label: "시행/단계 적용", value: `${regulations.filter(r => (tabCounts[r.id] ?? 0) > 0).length}개` },
-              { label: "데이터 기준", value: "Google News RSS · 최근 30일" },
+              { label: "보도 지역 TOP", value: formatTopList(insightCounts.regionCounts, "region") },
+              { label: "반응 유형 TOP", value: formatTopList(insightCounts.reactionTypeCounts, "type") },
+              { label: "플레이어 TOP", value: formatTopList(insightCounts.actorTypeCounts, "type") },
+              { label: "주요 매체 TOP", value: formatTopList(insightCounts.topSources, "source") },
             ].map((card) => (
               <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-xs font-bold text-slate-400">{card.label}</p>
@@ -197,7 +247,7 @@ export default function NewsPage() {
                 {activeTab === "all" ? "전체" : regulations.find(r => r.id === activeTab)?.code ?? activeTab} 뉴스 목록
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                보도일자, 매체, 지역, 플레이어, 반응 유형을 한 줄에서 확인합니다.
+                보도일자, 매체, 보도 지역, 플레이어, 반응 유형을 한 줄에서 확인합니다.
               </p>
             </div>
 
@@ -211,7 +261,7 @@ export default function NewsPage() {
                       <th className="w-28 px-4 py-3 text-left text-[11px] font-black text-slate-500">보도일자</th>
                       <th className="w-28 px-4 py-3 text-left text-[11px] font-black text-slate-500">규제</th>
                       <th className="w-36 px-4 py-3 text-left text-[11px] font-black text-slate-500">매체</th>
-                      <th className="w-28 px-4 py-3 text-left text-[11px] font-black text-slate-500">매체 지역</th>
+                      <th className="w-28 px-4 py-3 text-left text-[11px] font-black text-slate-500">보도 지역</th>
                       <th className="w-32 px-4 py-3 text-left text-[11px] font-black text-slate-500">플레이어</th>
                       <th className="w-32 px-4 py-3 text-left text-[11px] font-black text-slate-500">반응 유형</th>
                       <th className="min-w-[400px] px-4 py-3 text-left text-[11px] font-black text-slate-500">기사 제목</th>
@@ -250,7 +300,7 @@ export default function NewsPage() {
                             </td>
                             <td className="px-4 py-3">
                               <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">
-                                {item.newsType || "미분류"}
+                                {item.reactionType || item.newsType || "미분류"}
                               </span>
                             </td>
                             <td className="px-4 py-3">

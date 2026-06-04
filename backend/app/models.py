@@ -75,8 +75,9 @@ class NewsItem(BaseModel):
     relatedRegulationIds: list[str] = Field(default_factory=list)
     relatedRegulationNames: list[str] = Field(default_factory=list)
     sourceType: str = "언론"
-    actorType: str = "시장/솔루션"
+    actorType: str = "언론/기타"
     newsType: str = "시장 동향"
+    reactionType: str = "기타"
     relevanceScore: int = 0
     importanceScore: int = 0
     summary: str = ""
@@ -94,6 +95,16 @@ class RegionCount(BaseModel):
     count: int
 
 
+class TypeCount(BaseModel):
+    type: str
+    count: int
+
+
+class SourceCount(BaseModel):
+    source: str
+    count: int
+
+
 class NewsResponse(BaseModel):
     items: list[NewsItem]
     count: int
@@ -102,6 +113,10 @@ class NewsResponse(BaseModel):
     regulationId: str | None = None
     availableRegulations: list[NewsRegulationMeta] = Field(default_factory=list)
     regionCounts: list[RegionCount] = Field(default_factory=list)
+    reactionTypeCounts: list[TypeCount] = Field(default_factory=list)
+    actorTypeCounts: list[TypeCount] = Field(default_factory=list)
+    sourceTypeCounts: list[TypeCount] = Field(default_factory=list)
+    topSources: list[SourceCount] = Field(default_factory=list)
 
 
 class DashboardStats(BaseModel):

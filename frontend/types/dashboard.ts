@@ -164,6 +164,7 @@ export interface NewsItem {
   sourceType?: string;
   actorType?: string;
   newsType?: string;
+  reactionType?: string;
   relevanceScore?: number;
   importanceScore?: number;
   summary?: string;
@@ -181,6 +182,16 @@ export interface RegionCount {
   count: number;
 }
 
+export interface TypeCount {
+  type: string;
+  count: number;
+}
+
+export interface SourceCount {
+  source: string;
+  count: number;
+}
+
 export interface NewsFeedResponse {
   items: NewsItem[];
   count: number;
@@ -189,6 +200,10 @@ export interface NewsFeedResponse {
   regulationId: string | null;
   availableRegulations: NewsRegulationMeta[];
   regionCounts: RegionCount[];
+  reactionTypeCounts: TypeCount[];
+  actorTypeCounts: TypeCount[];
+  sourceTypeCounts: TypeCount[];
+  topSources: SourceCount[];
 }
 
 export interface DashboardStats {

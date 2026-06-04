@@ -33,11 +33,28 @@ HEADERS = {
 
 KNOWN_MEDIA_REGION_RULES = (
     ("mpr china certification", "중국"),
+    ("the astana times", "카자흐스탄"),
     ("times of india", "인도"),
     ("the hindu", "인도"),
     ("down to earth", "인도"),
     ("china daily", "중국"),
     ("wall street journal", "미국"),
+    ("mexico business news", "멕시코"),
+    ("medical device and diagnostic industry", "미국"),
+    ("mddionline", "미국"),
+    ("the shop mag", "미국"),
+    ("theshopmag", "미국"),
+    ("discovery alert", "호주"),
+    ("innovation news network", "영국"),
+    ("automotive world", "영국"),
+    ("the ai journal", "영국"),
+    ("printindustry.news", "글로벌"),
+    ("green retail world", "영국"),
+    ("wood central", "호주"),
+    ("foodnavigator", "EU/유럽"),
+    ("daily coffee news", "미국"),
+    ("packaging gateway", "영국"),
+    ("packaging digest", "미국"),
     ("american recycler", "미국"),
     ("resource recycling", "미국"),
     ("plastics news", "미국"),
@@ -72,21 +89,23 @@ KNOWN_MEDIA_REGION_RULES = (
     ("politico", "미국/EU"),
     ("mongabay", "미국"),
     ("reuters", "영국"),
+    ("msn", "미국"),
     ("guardian", "영국"),
     ("bbc", "영국"),
     ("wsj", "미국"),
     ("ft.com", "영국"),
     ("businessgreen", "영국"),
     ("jd supra", "미국"),
-    ("lexology", "글로벌 법률/자문"),
-    ("openpr", "글로벌 보도자료"),
-    ("indexbox", "글로벌 시장조사"),
-    ("s&p global", "글로벌 시장정보"),
-    ("kpmg", "글로벌 회계/컨설팅"),
-    ("deloitte", "글로벌 회계/컨설팅"),
-    ("pwc", "글로벌 회계/컨설팅"),
-    ("grant thornton", "글로벌 회계/컨설팅"),
-    ("ey", "글로벌 회계/컨설팅"),
+    ("iflr", "영국"),
+    ("lexology", "글로벌/자문"),
+    ("openpr", "글로벌/보도자료"),
+    ("indexbox", "글로벌/시장"),
+    ("s&p global", "글로벌/시장"),
+    ("kpmg", "글로벌/컨설팅"),
+    ("deloitte", "글로벌/컨설팅"),
+    ("pwc", "글로벌/컨설팅"),
+    ("grant thornton", "글로벌/컨설팅"),
+    ("ey", "글로벌/컨설팅"),
     ("nikkei", "일본"),
     ("hankyung", "한국"),
     ("chosun", "한국"),
@@ -133,6 +152,11 @@ TLD_REGION_RULES = (
     (".bd", "방글라데시"),
     (".hk", "중국"),
     (".th", "태국"),
+    (".kz", "카자흐스탄"),
+    (".mx", "멕시코"),
+    (".nz", "뉴질랜드"),
+    (".za", "남아프리카공화국"),
+    (".sg", "싱가포르"),
     (".eu", "EU/유럽"),
     (".br", "브라질"),
     (".id", "인도네시아"),
@@ -163,6 +187,11 @@ MEDIA_REGION_KEYWORD_RULES = (
     ("ghana", "가나"),
     ("turkey", "터키"),
     ("turkiye", "터키"),
+    ("kazakhstan", "카자흐스탄"),
+    ("mexico", "멕시코"),
+    ("singapore", "싱가포르"),
+    ("new zealand", "뉴질랜드"),
+    ("south africa", "남아프리카공화국"),
     ("canada", "캐나다"),
     ("australia", "호주"),
     ("europe", "EU/유럽"),
@@ -174,15 +203,15 @@ SOURCE_TYPE_RULES = {
         "eur-lex", "european commission", "european parliament",
         "council of the eu", "official journal", "efrag", "sec", "carb",
     ],
-    "로펌/자문": [
+    "로펌": [
         "latham", "white & case", "dla piper", "clifford chance",
         "baker mckenzie", "linklaters", "freshfields", "norton rose",
         "lexology", "jd supra", "watson farley", "hogan lovells",
-        "ropes & gray", "dentons",
+        "ropes & gray", "dentons", "iflr",
     ],
-    "컨설팅": ["deloitte", "pwc", "ey", "kpmg", "accenture"],
+    "컨설팅/자문": ["deloitte", "pwc", "ey", "kpmg", "accenture", "grant thornton"],
     "산업협회": ["association", "federation", "industry group", "trade body", "chamber"],
-    "NGO": ["wwf", "greenpeace", "clientearth", "cdp", "somo", "mongabay"],
+    "NGO/시민단체": ["wwf", "greenpeace", "clientearth", "cdp", "somo", "mongabay"],
 }
 
 NEWS_TYPE_RULES = {
@@ -203,22 +232,81 @@ NEWS_TYPE_RULES = {
     "시장 동향": ["market", "software", "platform", "startup", "tool", "service"],
 }
 
+REACTION_TYPE_RULES = {
+    "정책 발표/개정": [
+        "adopted", "adoption", "approved", "approval", "passed", "vote",
+        "published", "proposal", "proposed", "guidance", "delegated act",
+        "implementing act", "working plan", "regulation update", "directive",
+        "regulation", "official journal", "consultation",
+    ],
+    "시행 지연/완화": [
+        "delay", "delayed", "postpone", "postponed", "defer", "deferred",
+        "extension", "extended", "simplification", "relief", "rollback",
+        "pause", "watered down", "weakened", "relaxation", "omnibus",
+        "scaled back", "eased",
+    ],
+    "반발/우려": [
+        "concern", "concerns", "criticize", "criticised", "criticized",
+        "opposition", "pushback", "backlash", "burden", "cost",
+        "challenge", "warning", "risk", "lobby", "oppose",
+        "urge", "criticism", "push back", "warns",
+    ],
+    "대응 준비": [
+        "compliance", "comply", "preparing", "prepare", "readiness",
+        "implementation", "roadmap", "framework", "deadline", "reporting",
+        "disclosure", "due diligence", "audit", "traceability", "assessment",
+    ],
+    "공급망 변화": [
+        "supply chain", "supplier", "suppliers", "sourcing", "procurement",
+        "exporter", "exporters", "value chain", "traceability", "origin",
+        "raw material", "recycled material", "recycled content", "closed-loop",
+        "reshoring", "interoperability",
+    ],
+    "투자/사업 확대": [
+        "investment", "invest", "funding", "factory", "plant", "expansion",
+        "partnership", "joint venture", "acquisition", "contract",
+        "commercial", "scale up", "launches new service", "expand", "scale",
+        "facility", "raise", "capacity",
+    ],
+    "신제품/솔루션": [
+        "launch", "unveil", "software", "platform", "solution", "tool",
+        "service", "module", "registry", "passport", "data exchange",
+        "interoperability", "verification", "tracking", "coding standard",
+        "digital product passport",
+    ],
+    "소송/제재": [
+        "lawsuit", "sue", "sued", "fine", "penalty", "enforcement",
+        "investigation", "sanction", "sanctions", "legal challenge",
+        "court", "complaint",
+    ],
+    "해설/가이드": [
+        "explainer", "guide", "what companies need to know", "overview",
+        "analysis", "briefing", "client alert", "legal update",
+        "what it means", "how to prepare", "q&a", "explained",
+        "practical framework", "checklist", "webinar",
+    ],
+}
+
 HIGH_SIGNAL_KEYWORDS = [
     "implementation", "deadline", "guidance", "delegated act",
     "vote", "adoption", "adopted", "delay", "compliance", "reporting", "scope 3",
+    "supply chain", "traceability", "recycled content", "due diligence",
 ]
 
 LOW_QUALITY_KEYWORDS = [
     "webinar", "sponsored", "award", "job", "career", "internship",
-    "stock", "share price", "earnings", "annual report",
+    "stock", "share price", "earnings", "annual report", "market report",
+    "market analysis", "market forecast", "market size", "top 5 companies",
+    "product launch", "product promotion", "press release", "openpr",
+    "conference agenda", "live update", "generic market report",
 ]
 
 SOURCE_IMPORTANCE = {
     "공식기관": 35,
-    "로펌/자문": 24,
-    "컨설팅": 22,
+    "로펌": 24,
+    "컨설팅/자문": 22,
     "산업협회": 20,
-    "NGO": 18,
+    "NGO/시민단체": 18,
     "언론": 16,
 }
 
@@ -532,23 +620,68 @@ def detect_news_type(title: str, summary: str) -> str:
     return best_type
 
 
-def detect_actor_type(source_type: str, news_type: str, text: str) -> str:
+def detect_reaction_type(title: str, summary: str) -> str:
+    text = f"{title} {summary}".lower()
+    best_type = "기타"
+    best_score = 0
+    for reaction_type, keywords in REACTION_TYPE_RULES.items():
+        score = sum(1 for keyword in keywords if keyword in text)
+        if score > best_score:
+            best_type = reaction_type
+            best_score = score
+    return best_type
+
+
+def detect_actor_type(source_type: str, reaction_type: str, text: str) -> str:
     lowered = text.lower()
     if source_type == "공식기관":
         return "정부/규제기관"
-    if source_type == "NGO":
-        return "NGO"
-    if source_type == "로펌/자문":
-        return "로펌/자문"
-    if source_type == "컨설팅":
-        return "시장/솔루션"
+    if source_type == "NGO/시민단체":
+        return "NGO/시민단체"
+    if source_type == "로펌":
+        return "로펌"
+    if source_type == "컨설팅/자문":
+        return "컨설팅/자문"
     if source_type == "산업협회":
-        return "산업/협회"
-    if "investor" in lowered or "asset manager" in lowered or "bank" in lowered:
+        return "산업협회"
+
+    if any(keyword in lowered for keyword in [
+        "commission", "parliament", "council", "government", "ministry",
+        "regulator", "authority", "agency", "official journal",
+    ]):
+        return "정부/규제기관"
+    if any(keyword in lowered for keyword in [
+        "association", "federation", "coalition", "alliance", "industry group",
+        "trade body", "chamber",
+    ]):
+        return "산업협회"
+    if any(keyword in lowered for keyword in [
+        "ngo", "campaign", "civil society", "greenpeace", "wwf", "clientearth",
+        "environmental group",
+    ]):
+        return "NGO/시민단체"
+    if any(keyword in lowered for keyword in [
+        "investor", "asset manager", "bank", "lender", "fund", "insurer",
+        "finance", "financial institution",
+    ]):
         return "투자자/금융"
-    if news_type == "기업 대응":
+    if any(keyword in lowered for keyword in [
+        "university", "research", "institute", "laboratory", "think tank",
+        "study", "scientist",
+    ]):
+        return "연구기관"
+    if any(keyword in lowered for keyword in [
+        "software", "platform", "solution", "tool", "service provider",
+        "technology provider", "startup", "data exchange", "registry",
+    ]) or reaction_type == "신제품/솔루션":
+        return "기술공급업체"
+    if any(keyword in lowered for keyword in [
+        "company", "companies", "manufacturer", "supplier", "exporter",
+        "importer", "automaker", "oem", "brand", "retailer", "producer",
+        "industry", "factory", "plant",
+    ]) or reaction_type in {"대응 준비", "공급망 변화", "투자/사업 확대"}:
         return "기업"
-    return "시장/솔루션"
+    return "언론/기타"
 
 
 def build_regulation_terms(regulation: dict[str, Any]) -> list[str]:
@@ -597,7 +730,7 @@ def score_relevance(
         score += 3
 
     source_type = detect_source_type(source)
-    if source_type in {"공식기관", "로펌/자문", "컨설팅", "산업협회"}:
+    if source_type in {"공식기관", "로펌", "컨설팅/자문", "산업협회"}:
         score += 1
 
     return score
@@ -606,19 +739,33 @@ def score_relevance(
 def score_importance(
     source: str,
     source_type: str,
-    news_type: str,
+    reaction_type: str,
     published_at: datetime,
+    title: str = "",
+    summary: str = "",
 ) -> int:
     score = SOURCE_IMPORTANCE.get(source_type, 12)
-    lowered = source.lower()
+    source_lowered = source.lower()
+    text = f"{title} {summary} {source}".lower()
 
-    if "reuters" in lowered or "bloomberg" in lowered or "financial times" in lowered:
+    if any(keyword in source_lowered for keyword in [
+        "reuters", "bloomberg", "financial times", "euractiv",
+        "responsible investor", "esg today",
+    ]):
         score += 10
 
-    if news_type in {"정책 발표", "시행 연기"}:
+    if reaction_type in {"정책 발표/개정", "시행 지연/완화"}:
         score += 12
-    elif news_type == "기업 대응":
+    elif reaction_type in {"반발/우려", "공급망 변화", "소송/제재"}:
+        score += 8
+    elif reaction_type == "투자/사업 확대":
+        score += 7
+    elif reaction_type == "대응 준비":
         score += 6
+    elif reaction_type in {"신제품/솔루션", "해설/가이드"}:
+        score += 3
+
+    score -= score_keywords(text, LOW_QUALITY_KEYWORDS, exact_score=4, partial_score=2)
 
     age_days = max((datetime.now(UTC) - published_at).days, 0)
     if age_days <= 3:
@@ -730,9 +877,17 @@ def build_news_item(
     published_at = article["publishedAt"]
     source_type = detect_source_type(source)
     news_type = detect_news_type(title, summary)
-    actor_type = detect_actor_type(source_type, news_type, f"{title} {summary}")
+    reaction_type = detect_reaction_type(title, summary)
+    actor_type = detect_actor_type(source_type, reaction_type, f"{title} {summary} {source}")
     relevance_score = score_relevance(title, summary, source, regulation)
-    importance_score = score_importance(source, source_type, news_type, published_at)
+    importance_score = score_importance(
+        source,
+        source_type,
+        reaction_type,
+        published_at,
+        title,
+        summary,
+    )
     acronym = regulation.get("acronym", regulation.get("code", regulation["id"]))
 
     return {
@@ -757,6 +912,7 @@ def build_news_item(
         "sourceType": source_type,
         "actorType": actor_type,
         "newsType": news_type,
+        "reactionType": reaction_type,
         "relevanceScore": relevance_score,
         "importanceScore": importance_score,
         "summary": summary,
@@ -941,6 +1097,38 @@ def build_region_counts(items: list[NewsArticle]) -> list[dict[str, Any]]:
     ]
 
 
+def build_type_counts(items: list[NewsArticle], field: str) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    for item in items:
+        value = item.get(field) or "기타"
+        counts[value] = counts.get(value, 0) + 1
+    return [
+        {"type": value, "count": count}
+        for value, count in sorted(counts.items(), key=lambda row: row[1], reverse=True)
+    ]
+
+
+def build_top_sources(items: list[NewsArticle], limit: int = 10) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    for item in items:
+        source = item.get("source") or "미확인"
+        counts[source] = counts.get(source, 0) + 1
+    return [
+        {"source": source, "count": count}
+        for source, count in sorted(counts.items(), key=lambda row: row[1], reverse=True)[:limit]
+    ]
+
+
+def build_news_counts(items: list[NewsArticle]) -> dict[str, Any]:
+    return {
+        "regionCounts": build_region_counts(items),
+        "reactionTypeCounts": build_type_counts(items, "reactionType"),
+        "actorTypeCounts": build_type_counts(items, "actorType"),
+        "sourceTypeCounts": build_type_counts(items, "sourceType"),
+        "topSources": build_top_sources(items),
+    }
+
+
 def fetch_regulation_news(
     regulation: dict[str, Any],
     limit: int = 20,
@@ -963,7 +1151,7 @@ def fetch_regulation_news(
                 "count": len(items),
             }
         ],
-        "regionCounts": build_region_counts(items),
+        **build_news_counts(items),
     }
 
 
@@ -1010,7 +1198,7 @@ def fetch_all_rss_articles(
         "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "regulationId": None,
         "availableRegulations": build_available_regulations(regulations, merged_items),
-        "regionCounts": build_region_counts(merged_items),
+        **build_news_counts(merged_items),
     }
     if merged_items:
         _cache_set(_ALL_NEWS_CACHE, cache_key, response)

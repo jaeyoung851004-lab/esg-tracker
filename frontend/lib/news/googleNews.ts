@@ -49,5 +49,9 @@ export function emptyNewsFeed(regulationId?: string): NewsFeedResponse {
     regulationId: regulationId ?? null,
     availableRegulations: [],
     regionCounts: [],
+    reactionTypeCounts: [],
+    actorTypeCounts: [],
+    sourceTypeCounts: [],
+    topSources: [],
   };
 }

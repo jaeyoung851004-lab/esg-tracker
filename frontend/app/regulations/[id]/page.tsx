@@ -4,11 +4,12 @@ import type { ReactNode } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import type {
+  NewsFeedResponse,
   RegulationDetail,
   RegulationOfficialMetadata,
 } from "@/types/dashboard";
 import {
-  getNews,
+  getNewsFeed,
   getRegulationDetail,
   summarizeRegulation,
 } from "@/lib/api";
@@ -51,6 +52,43 @@ function formatDate(date?: string | null) {
   return parsed.toISOString().slice(0, 10).replaceAll("-", ".");
 }
 
+function formatTopMetric(
+  rows: Array<{ region?: string; type?: string; source?: string; count: number }>,
+  key: "region" | "type" | "source"
+) {
+  const top = rows.slice(0, 5);
+  if (top.length === 0) return "데이터 없음";
+  return top.map((row) => `${row[key] ?? "기타"} ${row.count}`).join(" · ");
+}
+
+function NewsSignalSummary({ feed }: { feed: NewsFeedResponse }) {
+  const metrics = [
+    { label: "수집 기사", value: `${feed.count}건` },
+    { label: "보도 지역 TOP", value: formatTopMetric(feed.regionCounts ?? [], "region") },
+    { label: "반응 유형 TOP", value: formatTopMetric(feed.reactionTypeCounts ?? [], "type") },
+    { label: "플레이어 TOP", value: formatTopMetric(feed.actorTypeCounts ?? [], "type") },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2">
+        {metrics.map((metric) => (
+          <div key={metric.label} className="rounded-lg bg-slate-50 px-3 py-3">
+            <p className="text-xs font-black text-slate-500">{metric.label}</p>
+            <p className="mt-1 text-sm font-bold leading-relaxed text-navy">{metric.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between">
+        <span>Google News RSS 기준 최근 30일 기사에서 규제별 보도 신호를 요약합니다.</span>
+        <Link href="/news" className="shrink-0 text-xs font-black text-emeraldBrand hover:underline">
+          뉴스 & 인사이트 보기
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default async function RegulationDetailPage({
   params,
 }: {
@@ -65,7 +103,7 @@ export default async function RegulationDetailPage({
     officialMetadata.official_document_url ||
     officialMetadata.source_url ||
     regulation.official_url;
-  const news = await getNews(regulation.id, 8);
+  const newsFeed = await getNewsFeed({ regulationId: regulation.id, limit: 30 });
   const dates = Object.values(regulation.legal.dates ?? {}).filter(
     (item) => item?.date
   );
@@ -247,35 +285,8 @@ export default async function RegulationDetailPage({
                 </div>
               </Panel>
 
-              <Panel title="관련 뉴스">
-                <div className="divide-y divide-slate-100">
-                  {news.map((item) => (
-                    <a
-                      key={item.id}
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex gap-3 py-3 hover:opacity-80"
-                    >
-                      <span className="mt-0.5 h-5 w-24 shrink-0 rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-center text-[10px] font-black text-slate-600">
-                        {item.source}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium leading-snug text-navy">
-                          {item.titleKo || item.title}
-                        </span>
-                        {item.summary && (
-                          <span className="mt-1 block text-xs leading-relaxed text-slate-500">
-                            {item.summary}
-                          </span>
-                        )}
-                      </span>
-                      <span className="shrink-0 text-xs text-slate-400">
-                        {item.age}
-                      </span>
-                    </a>
-                  ))}
-                </div>
+              <Panel title="최근 30일 뉴스 신호">
+                <NewsSignalSummary feed={newsFeed} />
               </Panel>
             </div>
 

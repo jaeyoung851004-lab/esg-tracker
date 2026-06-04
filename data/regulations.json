@@ -103,24 +103,25 @@
       },
       "news_config": {
         "search_queries": [
-          "ESPR Digital Product Passport EU regulation",
-          "Ecodesign Sustainable Products Regulation delegated act 2026"
+          "ESPR ecodesign sustainable products regulation",
+          "Ecodesign Sustainable Products Regulation delegated acts 2026",
+          "ESPR working plan delegated acts",
+          "EU ecodesign rules sustainable products"
         ],
         "required_keywords": [
           "ecodesign",
           "sustainable products",
-          "digital product passport",
-          "DPP",
           "ESPR regulation",
-          "delegated act"
+          "delegated act",
+          "working plan"
         ],
         "positive_keywords": [
           "ESPR",
           "ecodesign regulation",
           "sustainable products",
-          "digital product passport",
           "delegated act",
-          "working plan"
+          "working plan",
+          "ecodesign working plan"
         ],
         "industry_terms": [
           "textiles",
@@ -355,7 +356,9 @@
       "news_config": {
         "search_queries": [
           "Packaging Packaging Waste Regulation PPWR 2026",
-          "PPWR recycled content packaging EU compliance"
+          "PPWR recycled content packaging EU compliance",
+          "PPWR Packaging and Packaging Waste Regulation",
+          "EU PPWR recycled content reuse targets"
         ],
         "required_keywords": [
           "PPWR",
@@ -400,7 +403,14 @@
           "shares",
           "NASDAQ",
           "earnings",
-          "pharmaceutical"
+          "pharmaceutical",
+          "expo",
+          "exhibition",
+          "trade show",
+          "packaging fair",
+          "sponsored",
+          "product launch",
+          "openPR"
         ]
       },
       "history": [
@@ -601,8 +611,14 @@
       },
       "news_config": {
         "search_queries": [
-          "CSDDD Corporate Sustainability Due Diligence Omnibus 2026",
-          "EU supply chain due diligence directive 2029"
+          "CSDDD",
+          "CS3D",
+          "corporate sustainability due diligence",
+          "EU corporate due diligence",
+          "supply chain due diligence EU",
+          "human rights due diligence EU",
+          "responsible sourcing EU regulation",
+          "value chain due diligence"
         ],
         "required_keywords": [
           "CSDDD",
@@ -616,8 +632,11 @@
           "CSDDD",
           "CS3D",
           "Corporate Sustainability Due Diligence Directive",
+          "corporate due diligence",
           "supply chain due diligence",
           "human rights due diligence",
+          "responsible sourcing",
+          "value chain due diligence",
           "Omnibus"
         ],
         "industry_terms": [
@@ -649,7 +668,13 @@
           "NASDAQ",
           "earnings",
           "pharmaceutical",
-          "drug"
+          "drug",
+          "job",
+          "webinar",
+          "sponsored",
+          "grant",
+          "funding opportunity",
+          "training course"
         ]
       },
       "history": [
@@ -1711,7 +1736,10 @@
           "green claims directive greenwashing companies Europe",
           "environmental claims substantiation consumer brands EU",
           "greenwashing regulation EU consumer brands",
-          "EU green claims directive companies compliance"
+          "EU green claims directive companies compliance",
+          "greenwashing regulation EU",
+          "environmental claims EU consumer protection",
+          "green claims directive withdrawal"
         ],
         "required_keywords": [
           "green claims directive",
@@ -1745,6 +1773,8 @@
           "market analysis",
           "market size",
           "forecast",
+          "market forecast",
+          "IndexBox",
           "stock",
           "earnings"
         ],
@@ -1767,14 +1797,20 @@
           "drug",
           "GCD stock",
           "IndexBox",
+          "deodorant",
           "deodorant market analysis",
+          "baby diapers",
           "baby diapers market analysis",
+          "cat food",
           "cat food market analysis",
+          "shampoo",
           "shampoo market analysis",
           "cleaners market analysis",
           "collagen peptides market analysis",
           "waterproof wipes market analysis",
-          "generic consumer goods market reports"
+          "generic consumer goods market reports",
+          "market forecast",
+          "top 5 companies"
         ]
       },
       "history": [
@@ -2823,7 +2859,15 @@
           "lead acid battery market analysis",
           "World Automotive Lead Acid Battery",
           "ATF Professional announces",
-          "2026 procurement trends"
+          "2026 procurement trends",
+          "plastic bottle",
+          "bottle recycling",
+          "Gatorade bottles",
+          "packaging recycling",
+          "food packaging",
+          "municipal recycling",
+          "container deposit",
+          "plastic packaging market"
         ]
       },
       "history": [
