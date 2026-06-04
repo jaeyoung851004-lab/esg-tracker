@@ -115,7 +115,13 @@
           "ecodesign requirements tires EU",
           "unsold consumer products ESPR",
           "product sustainability requirements EU",
-          "sustainable product rules EU"
+          "sustainable product rules EU",
+          "ESPR unsold goods",
+          "ESPR textiles",
+          "ESPR circular design",
+          "Ecodesign Regulation unsold goods",
+          "EU ecodesign fans regulation",
+          "sustainable products regulation ecodesign textiles"
         ],
         "required_keywords": [
           "ecodesign",
@@ -136,10 +142,18 @@
           "product sustainability requirements",
           "unsold consumer products",
           "destruction of unsold goods",
+          "unsold goods",
+          "unsold clothes",
+          "destroying unsold clothes",
+          "ban on destroying unsold clothes",
           "ecodesign requirements",
           "textile ecodesign",
           "steel ecodesign",
-          "furniture ecodesign"
+          "furniture ecodesign",
+          "circular design",
+          "ecodesign of fans",
+          "fans ecodesign",
+          "repair agenda"
         ],
         "industry_terms": [
           "textiles",
@@ -149,7 +163,9 @@
           "furniture",
           "tires",
           "product design",
-          "supply chain data"
+          "supply chain data",
+          "unsold clothes",
+          "destroying unsold clothes"
         ],
         "negative_keywords": [
           "stock",
@@ -178,7 +194,19 @@
           "options chain",
           "share price",
           "market forecast",
-          "generic product market report"
+          "generic product market report",
+          "shareholder alert",
+          "shareholders",
+          "legal inquiry",
+          "class action",
+          "trending with analysts",
+          "openPR",
+          "market to reach",
+          "market expands",
+          "Battery Passport",
+          "DPP is coming",
+          "Africa DPP Registry",
+          "webinar"
         ]
       },
       "history": [
