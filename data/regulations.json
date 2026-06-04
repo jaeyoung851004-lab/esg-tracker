@@ -2006,8 +2006,18 @@
       },
       "news_config": {
         "search_queries": [
-          "EU AI Act GPAI high-risk artificial intelligence 2026",
-          "EU Artificial Intelligence Act compliance implementation"
+          "EU AI Act",
+          "AI Act compliance",
+          "high-risk AI EU",
+          "general purpose AI EU",
+          "GPAI EU",
+          "foundation model regulation EU",
+          "AI governance EU",
+          "AI transparency requirements EU",
+          "AI risk management EU",
+          "AI systems regulation Europe",
+          "EU AI Office code of practice",
+          "AI Act deployer obligations"
         ],
         "required_keywords": [
           "EU AI Act",
@@ -2057,7 +2067,18 @@
           "NASDAQ",
           "earnings",
           "AI stock",
+          "AI stocks",
           "AI company earnings",
+          "AI startup funding",
+          "AI image generator",
+          "ChatGPT prompt",
+          "generative AI tools",
+          "AI marketing",
+          "AI advertising",
+          "artificial intelligence market size",
+          "AI market forecast",
+          "chip stocks",
+          "Nvidia",
           "pharmaceutical",
           "drug"
         ]
