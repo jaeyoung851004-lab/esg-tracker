@@ -67,7 +67,15 @@
             "label": "ESPR 공식 페이지",
             "url": "https://environment.ec.europa.eu/topics/circular-economy/ecodesign-sustainable-products-regulation_en"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "EUR-Lex",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1781",
+          "celex_id": "32024R1781",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1781",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "medium",
@@ -312,7 +320,15 @@
             "label": "PPWR 공식 페이지",
             "url": "https://environment.ec.europa.eu/topics/circular-economy/packaging_en"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "EUR-Lex",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32025R0040",
+          "celex_id": "32025R0040",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32025R0040",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "high",
@@ -553,7 +569,15 @@
             "label": "이사회 채택 보도자료 (2026-02-24)",
             "url": "https://www.consilium.europa.eu/en/press/press-releases/2026/02/24/council-signs-off-simplification-of-sustainability-reporting-and-due-diligence-requirements-to-boost-eu-competitiveness/"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "EUR-Lex",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024L1760",
+          "celex_id": "32024L1760",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024L1760",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "high",
@@ -830,7 +854,15 @@
             "label": "간소화 ESRS 초안 (2025-12-03)",
             "url": "https://www.efrag.org/en/draft-simplified-esrs"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "EUR-Lex",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2464",
+          "celex_id": "32022L2464",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2464",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "high",
@@ -1118,7 +1150,15 @@
             "label": "CBAM 공식 페이지",
             "url": "https://taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism_en"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "EUR-Lex",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32023R0956",
+          "celex_id": "32023R0956",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32023R0956",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "high",
@@ -1374,7 +1414,15 @@
             "label": "이사회 개정 서명 보도자료 (2025-12-18)",
             "url": "https://www.consilium.europa.eu/en/press/press-releases/2025/12/18/deforestation-council-signs-off-targeted-revision-to-simplify-and-postpone-the-regulation/"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "EUR-Lex",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32023R1115",
+          "celex_id": "32023R1115",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32023R1115",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "medium",
@@ -1625,7 +1673,15 @@
             "label": "공식 철회 여부 설명",
             "url": "https://www.esgtoday.com/eu-commission-clarifies-anti-greenwashing-law-has-not-been-withdrawn/"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "European Commission",
+          "source_url": "https://environment.ec.europa.eu/topics/circular-economy/green-claims_en",
+          "celex_id": "",
+          "official_document_url": "https://environment.ec.europa.eu/topics/circular-economy/green-claims_en",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "low",
@@ -1879,7 +1935,15 @@
             "label": "AI Act 공식 페이지",
             "url": "https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "EUR-Lex",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689",
+          "celex_id": "32024R1689",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "medium",
@@ -2138,7 +2202,15 @@
             "label": "배터리 규정 공식 페이지",
             "url": "https://environment.ec.europa.eu/topics/waste-and-recycling/batteries_en"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "EUR-Lex",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32023R1542",
+          "celex_id": "32023R1542",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32023R1542",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "high",
@@ -2399,7 +2471,15 @@
             "label": "DPP 공식 페이지",
             "url": "https://environment.ec.europa.eu/topics/circular-economy/digital-product-passport_en"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "EUR-Lex",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1781",
+          "celex_id": "32024R1781",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1781",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "medium",
@@ -2595,7 +2675,7 @@
           "source_org": "EUR-Lex"
         }
       ],
-        "display": {
+      "display": {
         "status": "phased",
         "status_label": "🔵 단계적 시행",
         "card_summary": "ESPR에 따른 제품 지속가능성 정보 디지털 공개 의무 — 독립 규정 아님, 품목별 위임입법 채택 후 순차 적용",
@@ -2613,14 +2693,26 @@
         "legal_state": "legislative",
         "political_direction": "stable",
         "dates": {
-          "proposed": { "date": "2023-07-13", "label": "유럽위원회 초안 제안" },
-          "trilogue": { "date": "2025~2026", "label": "3자 협의(Trilogue) 진행 중" },
-          "application_date": { "date": "미정 (채택 후 ~3년)", "label": "기업 의무 적용 예상" }
+          "proposed": {
+            "date": "2023-07-13",
+            "label": "유럽위원회 초안 제안"
+          },
+          "trilogue": {
+            "date": "2025~2026",
+            "label": "3자 협의(Trilogue) 진행 중"
+          },
+          "application_date": {
+            "date": "미정 (채택 후 ~3년)",
+            "label": "기업 의무 적용 예상"
+          }
         },
         "thresholds": {
           "scope": "EU 시장에 출시되는 승용차(M1) 및 경상용차(N1)",
           "recycled_content_2030": "차량 플라스틱 부품 내 재생 플라스틱 최소 25% 함량 (2030년 목표, 초안 기준)",
-          "exemptions": ["대형 트럭·버스 등 M2·M3·N2·N3", "오프로드 차량 일부"]
+          "exemptions": [
+            "대형 트럭·버스 등 M2·M3·N2·N3",
+            "오프로드 차량 일부"
+          ]
         },
         "sources": [
           {
@@ -2629,7 +2721,15 @@
             "label": "ELV 규정 초안 (COM/2023/451)",
             "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:52023PC0451"
           }
-        ]
+        ],
+        "official_metadata": {
+          "source_name": "European Commission",
+          "source_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:52023PC0451",
+          "celex_id": "52023PC0451",
+          "official_document_url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:52023PC0451",
+          "last_synced_at": null,
+          "last_verified_at": "2026-05-16"
+        }
       },
       "ai_layer": {
         "confidence": "low",
@@ -2641,8 +2741,17 @@
           "차량 해체 정보 디지털화 — 부품별 소재·재활용 방법 공개 의무",
           "Trilogue 진행 중 — 수치·일정 변동 가능성 있음"
         ],
-        "affected_industries": ["완성차", "자동차 부품", "배터리", "철강·금속", "플라스틱·화학"],
-        "uncertain_items": ["재생 플라스틱 함량 목표 최종 수치", "Trilogue 최종 합의 및 채택 일정"]
+        "affected_industries": [
+          "완성차",
+          "자동차 부품",
+          "배터리",
+          "철강·금속",
+          "플라스틱·화학"
+        ],
+        "uncertain_items": [
+          "재생 플라스틱 함량 목표 최종 수치",
+          "Trilogue 최종 합의 및 채택 일정"
+        ]
       },
       "news_config": {
         "search_queries": [
@@ -2743,12 +2852,24 @@
       "company_mapping": {
         "note": "EU 판매 완성차 제조사 및 자동차 부품·소재 공급사 영향.",
         "direct": [
-          { "name": "현대자동차", "reason": "EU 판매 차량 — 재생 플라스틱 함량·해체 정보 디지털화 직접 적용" },
-          { "name": "기아", "reason": "EU 완성차 — ELV 규정 직접 적용" }
+          {
+            "name": "현대자동차",
+            "reason": "EU 판매 차량 — 재생 플라스틱 함량·해체 정보 디지털화 직접 적용"
+          },
+          {
+            "name": "기아",
+            "reason": "EU 완성차 — ELV 규정 직접 적용"
+          }
         ],
         "indirect": [
-          { "name": "현대모비스", "reason": "자동차 플라스틱·내장재 부품 — 재생 원료 함량 추적 대상" },
-          { "name": "LG에너지솔루션", "reason": "EV 배터리 — ELV·배터리 규정 중복 재활용 요건 대상" }
+          {
+            "name": "현대모비스",
+            "reason": "자동차 플라스틱·내장재 부품 — 재생 원료 함량 추적 대상"
+          },
+          {
+            "name": "LG에너지솔루션",
+            "reason": "EV 배터리 — ELV·배터리 규정 중복 재활용 요건 대상"
+          }
         ]
       }
     }

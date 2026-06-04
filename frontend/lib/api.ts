@@ -3,6 +3,7 @@ import type {
   NewsFeedResponse,
   NewsItem,
   Regulation,
+  RegulationOfficialMetadata,
   RegulationDetail,
   RegulationSummary,
 } from "@/types/dashboard";
@@ -33,6 +34,7 @@ type OldRegulation = {
       label: string;
       url: string;
     }[];
+    official_metadata?: RegulationOfficialMetadata;
   };
   ai_layer?: {
     confidence?: string;
@@ -238,12 +240,31 @@ function cleanLegal(reg: OldRegulation): Regulation["legal"] {
   };
 }
 
+function buildOfficialMetadata(reg: OldRegulation): RegulationOfficialMetadata {
+  const metadata = reg.legal?.official_metadata ?? {};
+  const primarySource =
+    reg.legal?.sources?.find((source) => source.type === "primary") ??
+    reg.legal?.sources?.[0];
+  const sourceUrl = metadata.source_url || primarySource?.url || "";
+  const celexMatch = sourceUrl.match(/CELEX:([^&]+)/i);
+
+  return {
+    source_name: metadata.source_name || primarySource?.org || "",
+    source_url: sourceUrl,
+    celex_id: metadata.celex_id || celexMatch?.[1] || "",
+    official_document_url: metadata.official_document_url || sourceUrl,
+    last_synced_at: metadata.last_synced_at ?? null,
+    last_verified_at: metadata.last_verified_at ?? null,
+  };
+}
+
 function convertRegulation(reg: OldRegulation): RegulationDetail {
   const statusMeta = normalizeStatusTone(
     reg.display?.status_label,
     reg.display?.status_tone
   );
   const primarySource = reg.legal?.sources?.[0];
+  const officialMetadata = buildOfficialMetadata(reg);
   const deadline =
     reg.display?.card_date_value ||
     reg.legal?.dates?.application_date?.date ||
@@ -275,7 +296,10 @@ function convertRegulation(reg: OldRegulation): RegulationDetail {
     acronym: reg.acronym,
     name_ko: reg.name_ko,
     name_en: reg.name_en,
-    legal: cleanLegal(reg) ?? {},
+    legal: {
+      ...(cleanLegal(reg) ?? {}),
+      official_metadata: officialMetadata,
+    },
     ai_layer: reg.ai_layer ?? {},
     news_config: reg.news_config ?? {},
     history: reg.history,
@@ -287,7 +311,21 @@ function convertRegulation(reg: OldRegulation): RegulationDetail {
     key_points: reg.ai_layer?.key_points,
     card_date_label: reg.display?.card_date_label,
     card_date_value: reg.display?.card_date_value,
-    official_url: primarySource?.url,
+    official_url: officialMetadata.official_document_url || primarySource?.url,
+    official_metadata: officialMetadata,
+    officialMetadata,
+    source_name: officialMetadata.source_name,
+    sourceName: officialMetadata.source_name,
+    source_url: officialMetadata.source_url,
+    sourceUrl: officialMetadata.source_url,
+    celex_id: officialMetadata.celex_id,
+    celexId: officialMetadata.celex_id,
+    official_document_url: officialMetadata.official_document_url,
+    officialDocumentUrl: officialMetadata.official_document_url,
+    last_synced_at: officialMetadata.last_synced_at,
+    lastSyncedAt: officialMetadata.last_synced_at,
+    last_verified_at: officialMetadata.last_verified_at,
+    lastVerifiedAt: officialMetadata.last_verified_at,
   };
 }
 
@@ -309,6 +347,10 @@ export function summarizeRegulation(
     statusKey: statusMeta.key,
     sourceCount: regulation.legal?.sources?.length ?? 0,
     historyCount: regulation.history?.length ?? 0,
+    checkpointCount: Object.values(regulation.action_checkpoints ?? {}).reduce(
+      (count, value) => count + (Array.isArray(value) ? value.length : value ? 1 : 0),
+      0
+    ),
     newsQueryCount: regulation.news_config?.search_queries?.length ?? 0,
   };
 }

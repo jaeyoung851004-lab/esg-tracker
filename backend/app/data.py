@@ -50,6 +50,27 @@ def _raw_data() -> dict[str, Any]:
     with DATA_FILE.open(encoding="utf-8") as f:
         return json.load(f)
 
+
+def _build_official_metadata(legal: dict[str, Any]) -> dict[str, Any]:
+    metadata = legal.get("official_metadata") or {}
+    sources = legal.get("sources") or []
+    primary_source = next(
+        (source for source in sources if source.get("type") == "primary"),
+        sources[0] if sources else {},
+    )
+    source_url = metadata.get("source_url") or primary_source.get("url", "")
+    celex_match = re.search(r"CELEX:([^&]+)", source_url, re.IGNORECASE)
+
+    return {
+        "source_name": metadata.get("source_name") or primary_source.get("org", ""),
+        "source_url": source_url,
+        "celex_id": metadata.get("celex_id") or (celex_match.group(1) if celex_match else ""),
+        "official_document_url": metadata.get("official_document_url") or source_url,
+        "last_synced_at": metadata.get("last_synced_at"),
+        "last_verified_at": metadata.get("last_verified_at"),
+    }
+
+
 def load_regulations() -> list[dict[str, Any]]:
     """regulations.json 구조를 자동 감지해서 리스트 반환"""
     raw = _raw_data()
@@ -62,6 +83,7 @@ def load_regulations() -> list[dict[str, Any]]:
             display = r.get("display", {})
             ai = r.get("ai_layer", {})
             legal = r.get("legal", {})
+            official_metadata = _build_official_metadata(legal)
             dates = legal.get("dates", {})
 
             # D-day 계산
@@ -99,11 +121,20 @@ def load_regulations() -> list[dict[str, Any]]:
 
             result.append({
                 "id": r.get("id", ""),
+                "acronym": r.get("acronym", r.get("code", "")),
                 "code": r.get("acronym", r.get("code", "")),
                 "title": display.get("card_summary", ai.get("situation_summary", r.get("name_ko", ""))[:60]),
                 "name_ko": r.get("name_ko", ""),
                 "name_en": r.get("name_en", ""),
                 "category": r.get("category", ""),
+                "legal": {**legal, "official_metadata": official_metadata},
+                "ai_layer": ai,
+                "history": r.get("history", []),
+                "display": display,
+                "action_checkpoints": r.get("action_checkpoints", {}),
+                "korean_company_note": r.get("korean_company_note", ""),
+                "company_mapping": r.get("company_mapping", {}),
+                "why_it_matters": r.get("why_it_matters", ""),
                 "country": display.get("country", "EU"),
                 "region": r.get("region", "eu"),
                 "industry": legal.get("thresholds", {}).get("scope", "전 산업")[:50],
@@ -116,11 +147,19 @@ def load_regulations() -> list[dict[str, Any]]:
                 "priority": display.get("priority", "중간"),
                 "summary": ai.get("situation_summary", "")[:200],
                 "key_points": ai.get("key_points", []),
-               "news_config": r.get("news_config") or {},
-"search_queries": (r.get("news_config") or {}).get("search_queries") or [],
-"required_keywords": (r.get("news_config") or {}).get("required_keywords") or [],
-"exclude_keywords": (r.get("news_config") or {}).get("exclude_keywords") or [],
-                "official_url": (legal.get("sources") or [{}])[0].get("url", "") if legal.get("sources") else "",
+                "affected_industries": ai.get("affected_industries", []),
+                "news_config": r.get("news_config") or {},
+                "search_queries": (r.get("news_config") or {}).get("search_queries") or [],
+                "required_keywords": (r.get("news_config") or {}).get("required_keywords") or [],
+                "exclude_keywords": (r.get("news_config") or {}).get("exclude_keywords") or [],
+                "official_metadata": official_metadata,
+                "source_name": official_metadata.get("source_name", ""),
+                "source_url": official_metadata.get("source_url", ""),
+                "celex_id": official_metadata.get("celex_id", ""),
+                "official_document_url": official_metadata.get("official_document_url", ""),
+                "last_synced_at": official_metadata.get("last_synced_at"),
+                "last_verified_at": official_metadata.get("last_verified_at"),
+                "official_url": official_metadata.get("official_document_url") or official_metadata.get("source_url", ""),
                 "card_date_label": display.get("card_date_label", ""),
                 "card_date_value": display.get("card_date_value", ""),
             })
@@ -319,10 +358,20 @@ def list_regulation_summaries() -> list[dict]:
             "priority": r.get("priority", "중간"),
             "summary": r.get("summary", ""),
             "whyItMatters": r.get("summary", ""),
-            "affectedIndustries": [],
-            "sourceCount": 1,
-            "historyCount": 0,
-            "checkpointCount": 0,
+            "affectedIndustries": r.get("affected_industries", []),
+            "sourceCount": len(r.get("legal", {}).get("sources", [])) if r.get("legal") else 0,
+            "historyCount": len(r.get("history", [])),
+            "checkpointCount": sum(
+                len(value) if isinstance(value, list) else 1
+                for value in (r.get("action_checkpoints") or {}).values()
+            ),
             "newsQueryCount": len(r.get("search_queries", [])),
+            "officialMetadata": r.get("official_metadata", {}),
+            "sourceName": r.get("source_name", ""),
+            "sourceUrl": r.get("source_url", ""),
+            "celexId": r.get("celex_id", ""),
+            "officialDocumentUrl": r.get("official_document_url", ""),
+            "lastSyncedAt": r.get("last_synced_at"),
+            "lastVerifiedAt": r.get("last_verified_at"),
         })
     return result

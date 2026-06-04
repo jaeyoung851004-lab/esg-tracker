@@ -5,6 +5,15 @@ export interface RegulationSource {
   url: string;
 }
 
+export interface RegulationOfficialMetadata {
+  source_name?: string;
+  source_url?: string;
+  celex_id?: string;
+  official_document_url?: string;
+  last_synced_at?: string | null;
+  last_verified_at?: string | null;
+}
+
 export interface RegulationHistory {
   date: string;
   event: string;
@@ -24,6 +33,7 @@ export interface RegulationLegal {
   >;
   thresholds?: Record<string, string | string[]>;
   sources?: RegulationSource[];
+  official_metadata?: RegulationOfficialMetadata;
 }
 
 export interface RegulationAiLayer {
@@ -103,6 +113,20 @@ export interface Regulation {
   card_date_label?: string;
   card_date_value?: string;
   official_url?: string;
+  official_metadata?: RegulationOfficialMetadata;
+  officialMetadata?: RegulationOfficialMetadata;
+  source_name?: string;
+  sourceName?: string;
+  source_url?: string;
+  sourceUrl?: string;
+  celex_id?: string;
+  celexId?: string;
+  official_document_url?: string;
+  officialDocumentUrl?: string;
+  last_synced_at?: string | null;
+  lastSyncedAt?: string | null;
+  last_verified_at?: string | null;
+  lastVerifiedAt?: string | null;
 }
 
 export interface RegulationSummary extends Regulation {
@@ -111,6 +135,7 @@ export interface RegulationSummary extends Regulation {
   statusKey: string;
   sourceCount: number;
   historyCount: number;
+  checkpointCount?: number;
   newsQueryCount: number;
 }
 

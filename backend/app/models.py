@@ -26,6 +26,13 @@ class RegulationSummary(BaseModel):
     historyCount: int = Field(alias="historyCount")
     checkpointCount: int = Field(alias="checkpointCount")
     newsQueryCount: int = Field(alias="newsQueryCount")
+    officialMetadata: dict[str, Any] = Field(default_factory=dict, alias="officialMetadata")
+    sourceName: str = Field(default="", alias="sourceName")
+    sourceUrl: str = Field(default="", alias="sourceUrl")
+    celexId: str = Field(default="", alias="celexId")
+    officialDocumentUrl: str = Field(default="", alias="officialDocumentUrl")
+    lastSyncedAt: str | None = Field(default=None, alias="lastSyncedAt")
+    lastVerifiedAt: str | None = Field(default=None, alias="lastVerifiedAt")
 
 
 class RegulationDetail(BaseModel):
@@ -45,6 +52,13 @@ class RegulationDetail(BaseModel):
     korean_company_note: str = ""
     company_mapping: dict[str, Any] = Field(default_factory=dict)
     why_it_matters: str = ""
+    official_metadata: dict[str, Any] = Field(default_factory=dict)
+    source_name: str = ""
+    source_url: str = ""
+    celex_id: str = ""
+    official_document_url: str = ""
+    last_synced_at: str | None = None
+    last_verified_at: str | None = None
 
 
 class NewsItem(BaseModel):
