@@ -82,6 +82,71 @@ export interface RegulationNewsConfig {
   exclude_keywords?: string[];
 }
 
+export type RegulationTrackingType =
+  | "framework_regulation"
+  | "directive_transposition"
+  | "reporting_disclosure"
+  | "trade_border"
+  | "delegated_acts_required"
+  | "standards_required"
+  | "phased_application"
+  | "revision_or_simplification";
+
+export type RegulationStageStatus =
+  | "not_started"
+  | "in_progress"
+  | "done"
+  | "delayed"
+  | "uncertain";
+
+export type RegulationDatePrecision =
+  | "day"
+  | "month"
+  | "quarter"
+  | "half_year"
+  | "year"
+  | "unknown";
+
+export type RegulationNextEventStatus =
+  | "scheduled"
+  | "expected"
+  | "uncertain"
+  | "delayed"
+  | "completed";
+
+export type RegulationScheduleRiskLevel = "low" | "medium" | "high" | "unknown";
+
+export interface RegulationTracking {
+  regulation_types?: RegulationTrackingType[];
+  lifecycle_status?: string;
+  current_stage?: {
+    stage_id?: string;
+    stage_label?: string;
+    stage_owner?: string;
+    stage_status?: RegulationStageStatus;
+    confidence?: string;
+  };
+  next_event?: {
+    event_label?: string;
+    event_type?: string;
+    expected_date?: string;
+    date_precision?: RegulationDatePrecision;
+    owner?: string;
+    status?: RegulationNextEventStatus;
+  };
+  business_action?: {
+    now?: string;
+    next_90_days?: string;
+    before_next_event?: string;
+  };
+  schedule_risk?: {
+    level?: RegulationScheduleRiskLevel;
+    drivers?: string[];
+    user_message?: string;
+  };
+  last_verified_at?: string;
+}
+
 export interface Regulation {
   id: string;
   code: string;
@@ -106,6 +171,7 @@ export interface Regulation {
   history?: RegulationHistory[];
   display?: RegulationDisplay;
   action_checkpoints?: RegulationActionCheckpoints;
+  tracking?: RegulationTracking;
   korean_company_note?: string;
   company_mapping?: RegulationCompanyMapping;
   why_it_matters?: string;
@@ -145,6 +211,7 @@ export interface RegulationDetail extends Regulation {
   news_config: RegulationNewsConfig;
   display: RegulationDisplay;
   action_checkpoints: RegulationActionCheckpoints;
+  tracking: RegulationTracking;
   company_mapping: RegulationCompanyMapping;
 }
 

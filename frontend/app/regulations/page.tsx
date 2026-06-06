@@ -9,6 +9,11 @@ import type {
   RegulationOfficialMetadata,
   RegulationSummary,
 } from "@/types/dashboard";
+import {
+  formatTrackingDateLabel,
+  getTrackingOwner,
+  hasTracking,
+} from "@/lib/tracking";
 
 const STATUS_STYLE: Record<string, string> = {
   success: "bg-green-50 text-green-700",
@@ -83,9 +88,30 @@ function getIndustries(reg: Regulation) {
 }
 
 function getNextMilestone(reg: RegulationSummary) {
+  if (hasTracking(reg)) {
+    return {
+      label: reg.tracking?.next_event?.event_label || "다음 이벤트",
+      value: formatTrackingDateLabel(reg.tracking),
+    };
+  }
+
   return {
     label: reg.card_date_label || reg.deadlineLabel || "다음 일정",
     value: reg.card_date_value || reg.deadline || "미정",
+  };
+}
+
+function getCurrentStage(reg: RegulationSummary) {
+  if (hasTracking(reg)) {
+    return {
+      label: reg.tracking?.current_stage?.stage_label || reg.status,
+      owner: getTrackingOwner(reg.tracking),
+    };
+  }
+
+  return {
+    label: reg.status,
+    owner: "",
   };
 }
 
@@ -122,6 +148,10 @@ export default function RegulationsPage() {
         reg.country,
         reg.industry,
         reg.status,
+        reg.tracking?.current_stage?.stage_label,
+        reg.tracking?.current_stage?.stage_owner,
+        reg.tracking?.next_event?.event_label,
+        reg.tracking?.next_event?.owner,
         metadata.source_name,
         metadata.celex_id,
       ]
@@ -156,6 +186,41 @@ export default function RegulationsPage() {
           </div>
 
           <div className="space-y-3">
+            <section className="rounded-lg border border-emerald-100 bg-white p-4 shadow-sm">
+              <div className="grid gap-4 lg:grid-cols-[1.2fr_1.8fr]">
+                <div>
+                  <h2 className="text-sm font-black text-navy">EU 규제 진행 단계</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    EU 규제는 법안이 발효돼도 곧바로 기업 의무가 발생하지 않을 수 있습니다.
+                    위임법령, 이행법령, 기술표준, 회원국 전환입법 등 후속 절차에 따라 실제
+                    적용 시점이 달라집니다.
+                  </p>
+                </div>
+                <ol className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    "집행위 제안",
+                    "의회·이사회 심의",
+                    "트라일로그",
+                    "최종 채택",
+                    "관보 게재·발효",
+                    "세부규칙·표준 마련",
+                    "기업 준비기간",
+                    "의무 적용·집행",
+                  ].map((step, index) => (
+                    <li
+                      key={step}
+                      className="flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-2"
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-black text-emerald-700">
+                        {index + 1}
+                      </span>
+                      <span className="font-semibold">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </section>
+
             <div className="flex flex-wrap gap-2">
               {CATEGORY_FILTERS.map((filter) => (
                 <button
@@ -224,11 +289,11 @@ export default function RegulationsPage() {
                     <th className="w-36 px-4 py-3 text-left text-[11px] font-black text-slate-500">
                       분야
                     </th>
-                    <th className="w-32 px-4 py-3 text-left text-[11px] font-black text-slate-500">
-                      상태
+                    <th className="min-w-[220px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
+                      현재 단계
                     </th>
-                    <th className="w-44 px-4 py-3 text-left text-[11px] font-black text-slate-500">
-                      다음 일정
+                    <th className="min-w-[220px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
+                      다음 이벤트
                     </th>
                     <th className="min-w-[220px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
                       영향 산업
@@ -245,6 +310,7 @@ export default function RegulationsPage() {
                   {filteredRegulations.map((reg) => {
                     const metadata = getOfficialMetadata(reg);
                     const milestone = getNextMilestone(reg);
+                    const currentStage = getCurrentStage(reg);
                     const officialUrl =
                       metadata.official_document_url || metadata.source_url || reg.official_url;
 
@@ -294,18 +360,25 @@ export default function RegulationsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3.5">
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                              STATUS_STYLE[reg.statusTone] ??
-                              STATUS_STYLE[reg.statusKey ?? ""] ??
-                              "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {reg.status}
-                          </span>
+                          <div>
+                            <span
+                              className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold leading-snug ${
+                                STATUS_STYLE[reg.statusTone] ??
+                                STATUS_STYLE[reg.statusKey ?? ""] ??
+                                "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {currentStage.label}
+                            </span>
+                            {currentStage.owner && (
+                              <p className="mt-1 text-[11px] leading-snug text-slate-400">
+                                {currentStage.owner}
+                              </p>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3.5">
-                          <p className="text-xs font-bold text-slate-400">
+                          <p className="line-clamp-2 text-xs font-bold text-slate-500">
                             {milestone.label}
                           </p>
                           <p className="mt-1 text-sm font-semibold text-navy">

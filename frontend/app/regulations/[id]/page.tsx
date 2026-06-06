@@ -13,6 +13,13 @@ import {
   getRegulationDetail,
   summarizeRegulation,
 } from "@/lib/api";
+import {
+  formatTrackingDateLabel,
+  getTrackingOwner,
+  getTrackingRiskClass,
+  getTrackingRiskLabel,
+  hasTracking,
+} from "@/lib/tracking";
 
 export const dynamic = "force-dynamic";
 
@@ -184,6 +191,50 @@ export default async function RegulationDetailPage({
             </div>
           </div>
 
+          {hasTracking(regulation) && (
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-navy">현재 단계</h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    지금 어디까지 왔고, 다음 공이 누구에게 있는지 요약합니다.
+                  </p>
+                </div>
+                <span
+                  className={`w-fit rounded-full border px-2.5 py-1 text-xs font-bold ${getTrackingRiskClass(
+                    regulation.tracking?.schedule_risk?.level
+                  )}`}
+                >
+                  일정 리스크 {getTrackingRiskLabel(regulation.tracking?.schedule_risk?.level)}
+                </span>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-5">
+                <TrackingMetric
+                  label="현재 단계"
+                  value={regulation.tracking?.current_stage?.stage_label}
+                />
+                <TrackingMetric
+                  label="담당 주체"
+                  value={getTrackingOwner(regulation.tracking)}
+                />
+                <TrackingMetric
+                  label="다음 이벤트"
+                  value={regulation.tracking?.next_event?.event_label}
+                  subValue={formatTrackingDateLabel(regulation.tracking)}
+                />
+                <TrackingMetric
+                  label="기업 행동 포인트"
+                  value={regulation.tracking?.business_action?.now}
+                />
+                <TrackingMetric
+                  label="일정 리스크"
+                  value={regulation.tracking?.schedule_risk?.user_message}
+                />
+              </div>
+            </section>
+          )}
+
           <section className="grid gap-4 lg:grid-cols-[1fr_280px]">
             <div className="space-y-4">
               <Panel title="Impact ON 해설">
@@ -348,6 +399,26 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="mb-3 text-base font-bold text-navy">{title}</h2>
       {children}
     </section>
+  );
+}
+
+function TrackingMetric({
+  label,
+  value,
+  subValue,
+}: {
+  label: string;
+  value?: string;
+  subValue?: string;
+}) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-3 py-3">
+      <p className="text-xs font-black text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-bold leading-relaxed text-navy">
+        {value || "확인 필요"}
+      </p>
+      {subValue && <p className="mt-1 text-xs text-slate-400">{subValue}</p>}
+    </div>
   );
 }
 

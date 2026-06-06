@@ -132,6 +132,7 @@ def load_regulations() -> list[dict[str, Any]]:
                 "history": r.get("history", []),
                 "display": display,
                 "action_checkpoints": r.get("action_checkpoints", {}),
+                "tracking": r.get("tracking") or {},
                 "korean_company_note": r.get("korean_company_note", ""),
                 "company_mapping": r.get("company_mapping", {}),
                 "why_it_matters": r.get("why_it_matters", ""),
@@ -366,6 +367,7 @@ def list_regulation_summaries() -> list[dict]:
                 for value in (r.get("action_checkpoints") or {}).values()
             ),
             "newsQueryCount": len(r.get("search_queries", [])),
+            "tracking": r.get("tracking") or {},
             "officialMetadata": r.get("official_metadata", {}),
             "sourceName": r.get("source_name", ""),
             "sourceUrl": r.get("source_url", ""),
