@@ -21,6 +21,63 @@ export interface RegulationHistory {
   source_org?: string;
 }
 
+export type RegulationGovernanceType =
+  | "single_dday"
+  | "multiphase"
+  | "framework"
+  | "legislative"
+  | "uncertain";
+
+export type RegulationDatePrecision =
+  | "day"
+  | "month"
+  | "quarter"
+  | "half_year"
+  | "year"
+  | "unknown";
+
+export type RegulationNextEventStatus =
+  | "scheduled"
+  | "expected"
+  | "uncertain"
+  | "delayed"
+  | "completed";
+
+export type RegulationScheduleRiskLevel = "low" | "medium" | "high" | "unknown";
+
+export interface RegulationTracking {
+  one_line_brief?: string;
+  regulation_types?: string[];
+  lifecycle_status?: string;
+  current_stage?: {
+    stage_id?: string;
+    stage_label?: string;
+    stage_owner?: string;
+    stage_status?: string;
+    confidence?: string;
+  };
+  next_event?: {
+    event_label?: string;
+    event_type?: string;
+    expected_date?: string;
+    date_precision?: RegulationDatePrecision;
+    owner?: string;
+    status?: RegulationNextEventStatus;
+  };
+  next_event_date_text?: string;
+  business_action?: {
+    now?: string;
+    next_90_days?: string;
+    before_next_event?: string;
+  };
+  schedule_risk?: {
+    level?: RegulationScheduleRiskLevel;
+    drivers?: string[];
+    user_message?: string;
+  };
+  last_verified_at?: string;
+}
+
 export interface RegulationLegal {
   legal_state?: string;
   political_direction?: string;
@@ -82,6 +139,14 @@ export interface RegulationNewsConfig {
   exclude_keywords?: string[];
 }
 
+export interface DelegatedActTrackerItem {
+  product_group?: string;
+  stage_label?: string;
+  next_event?: string;
+  expected_date?: string;
+  status?: string;
+}
+
 export interface Regulation {
   id: string;
   code: string;
@@ -97,6 +162,8 @@ export interface Regulation {
   risk: string;
   priority: string;
   summary: string;
+  summary_short?: string;
+  governance_type?: RegulationGovernanceType;
   acronym?: string;
   name_ko?: string;
   name_en?: string;
@@ -106,6 +173,8 @@ export interface Regulation {
   history?: RegulationHistory[];
   display?: RegulationDisplay;
   action_checkpoints?: RegulationActionCheckpoints;
+  tracking?: RegulationTracking;
+  delegated_acts_tracker?: DelegatedActTrackerItem[];
   korean_company_note?: string;
   company_mapping?: RegulationCompanyMapping;
   why_it_matters?: string;
