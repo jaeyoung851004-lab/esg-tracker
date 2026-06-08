@@ -1,0 +1,1825 @@
+﻿diff --git a/backend/app/data.py b/backend/app/data.py
+index 5ac3a77..4fd8b66 100644
+--- a/backend/app/data.py
++++ b/backend/app/data.py
+@@ -132,6 +132,7 @@ def load_regulations() -> list[dict[str, Any]]:
+                 "history": r.get("history", []),
+                 "display": display,
+                 "action_checkpoints": r.get("action_checkpoints", {}),
++                "tracking": r.get("tracking") or {},
+                 "korean_company_note": r.get("korean_company_note", ""),
+                 "company_mapping": r.get("company_mapping", {}),
+                 "why_it_matters": r.get("why_it_matters", ""),
+@@ -366,6 +367,7 @@ def list_regulation_summaries() -> list[dict]:
+                 for value in (r.get("action_checkpoints") or {}).values()
+             ),
+             "newsQueryCount": len(r.get("search_queries", [])),
++            "tracking": r.get("tracking") or {},
+             "officialMetadata": r.get("official_metadata", {}),
+             "sourceName": r.get("source_name", ""),
+             "sourceUrl": r.get("source_url", ""),
+diff --git a/backend/app/models.py b/backend/app/models.py
+index b03a84b..006b6c9 100644
+--- a/backend/app/models.py
++++ b/backend/app/models.py
+@@ -26,6 +26,7 @@ class RegulationSummary(BaseModel):
+     historyCount: int = Field(alias="historyCount")
+     checkpointCount: int = Field(alias="checkpointCount")
+     newsQueryCount: int = Field(alias="newsQueryCount")
++    tracking: dict[str, Any] = Field(default_factory=dict)
+     officialMetadata: dict[str, Any] = Field(default_factory=dict, alias="officialMetadata")
+     sourceName: str = Field(default="", alias="sourceName")
+     sourceUrl: str = Field(default="", alias="sourceUrl")
+@@ -49,6 +50,7 @@ class RegulationDetail(BaseModel):
+     history: list[dict[str, Any]] = Field(default_factory=list)
+     display: dict[str, Any]
+     action_checkpoints: dict[str, list[str] | str] = Field(default_factory=dict)
++    tracking: dict[str, Any] = Field(default_factory=dict)
+     korean_company_note: str = ""
+     company_mapping: dict[str, Any] = Field(default_factory=dict)
+     why_it_matters: str = ""
+diff --git a/backend/app/news.py b/backend/app/news.py
+index 4919279..dbbb0de 100644
+--- a/backend/app/news.py
++++ b/backend/app/news.py
+@@ -18,6 +18,9 @@ MAX_RSS_ENTRIES_PER_QUERY = 50
+ DEFAULT_PER_REGULATION_LIMIT = 30
+ DEFAULT_ALL_NEWS_LIMIT = 150
+ MAX_ALL_NEWS_LIMIT = 150
++DEFAULT_MIN_RELEVANCE_SCORE = 4
++HIGH_RELEVANCE_SIGNAL_BYPASS_SCORE = 30
++ALL_NEWS_MIN_ITEMS_PER_REGULATION = 5
+ RSS_REQUEST_TIMEOUT_SECONDS = 8
+ MAX_RSS_QUERY_WORKERS = 8
+ NEWS_CACHE_TTL_SECONDS = 20 * 60
+@@ -301,6 +304,21 @@ LOW_QUALITY_KEYWORDS = [
+     "conference agenda", "live update", "generic market report",
+ ]
+ 
++LOW_QUALITY_EXCLUDE_KEYWORDS = [
++    "openpr",
++    "press release",
++    "sponsored",
++    "market report",
++    "research report",
++    "market forecast",
++    "market size",
++    "market to reach",
++    "market by 2030",
++    "market by 2035",
++    "cagr",
++    "top 5 companies",
++]
++
+ SOURCE_IMPORTANCE = {
+     "공식기관": 35,
+     "로펌": 24,
+@@ -395,15 +413,23 @@ def _get_negative_keywords(regulation: dict[str, Any]) -> list[str]:
+     return _get_config_list(regulation, "negative_keywords")
+ 
+ 
++def _get_overlap_keywords(regulation: dict[str, Any]) -> list[str]:
++    return _get_config_list(regulation, "overlap_keywords")
++
++
++def _get_context_keywords(regulation: dict[str, Any]) -> list[str]:
++    return _get_config_list(regulation, "context_keywords")
++
++
+ def _get_trusted_sources(regulation: dict[str, Any]) -> list[str]:
+     return _get_config_list(regulation, "trusted_sources")
+ 
+ 
+ def _get_min_score(regulation: dict[str, Any]) -> int:
+     try:
+-        return int(_get_news_config(regulation).get("min_score", 0))
++        return int(_get_news_config(regulation).get("min_score", DEFAULT_MIN_RELEVANCE_SCORE))
+     except (TypeError, ValueError):
+-        return 0
++        return DEFAULT_MIN_RELEVANCE_SCORE
+ 
+ 
+ def _get_max_items(regulation: dict[str, Any]) -> int:
+@@ -449,6 +475,27 @@ def raw_article_key(article: RawArticle) -> str:
+     return f"title:{normalize_title_key(article.get('title', ''))}"
+ 
+ 
++def news_item_key(item: NewsArticle) -> str:
++    url_key = normalize_article_url_key(item.get("url", ""))
++    if url_key:
++        return f"url:{url_key}"
++    return f"title:{normalize_title_key(item.get('title', ''))}"
++
++
++def regulation_filter_cache_signature(regulation: dict[str, Any]) -> tuple[Any, ...]:
++    return (
++        _get_min_score(regulation),
++        tuple(keyword.lower() for keyword in _get_required_keywords(regulation)),
++        tuple(keyword.lower() for keyword in _get_positive_keywords(regulation)),
++        tuple(keyword.lower() for keyword in _get_industry_terms(regulation)),
++        tuple(keyword.lower() for keyword in _get_negative_keywords(regulation)),
++        tuple(keyword.lower() for keyword in _get_exclude_keywords(regulation)),
++        tuple(keyword.lower() for keyword in _get_trusted_sources(regulation)),
++        tuple(keyword.lower() for keyword in _get_overlap_keywords(regulation)),
++        tuple(keyword.lower() for keyword in _get_context_keywords(regulation)),
++    )
++
++
+ def regulation_cache_key(
+     regulation: dict[str, Any],
+     lookback_days: int,
+@@ -457,6 +504,7 @@ def regulation_cache_key(
+         "regulation-items",
+         regulation.get("id", ""),
+         tuple(query.lower() for query in _get_search_queries(regulation)),
++        regulation_filter_cache_signature(regulation),
+         lookback_days,
+     )
+ 
+@@ -472,6 +520,7 @@ def all_news_cache_key(
+             (
+                 regulation.get("id", ""),
+                 tuple(query.lower() for query in _get_search_queries(regulation)),
++                regulation_filter_cache_signature(regulation),
+                 _get_max_items(regulation),
+             )
+             for regulation in regulations
+@@ -919,28 +968,87 @@ def build_news_item(
+     }
+ 
+ 
+-def is_obvious_false_positive(
++def article_matches_trusted_source(
+     article: RawArticle,
+     regulation: dict[str, Any],
+-    relevance_score: int | None = None,
+ ) -> bool:
+-    text = f"{article['title']} {article['summary']} {article['source']}".lower()
+-    if keyword_matches(text, _get_exclude_keywords(regulation)):
++    source_text = " ".join(
++        value
++        for value in [
++            article.get("source", ""),
++            article.get("sourceUrl", ""),
++            article.get("url", ""),
++        ]
++        if value
++    ).lower()
++    return bool(
++        source_text
++        and any(keyword.lower() in source_text for keyword in _get_trusted_sources(regulation))
++    )
++
++
++def has_required_or_positive_signal(
++    text: str,
++    regulation: dict[str, Any],
++) -> bool:
++    signal_keywords = dedupe_preserve_order(
++        [*_get_required_keywords(regulation), *_get_positive_keywords(regulation)]
++    )
++    return bool(keyword_matches(text, signal_keywords))
++
++
++def has_required_context_for_overlap(
++    text: str,
++    regulation: dict[str, Any],
++) -> bool:
++    overlap_keywords = _get_overlap_keywords(regulation)
++    context_keywords = _get_context_keywords(regulation)
++    if not overlap_keywords or not context_keywords:
++        return True
++    if not keyword_matches(text, overlap_keywords):
+         return True
++    return bool(keyword_matches(text, context_keywords))
++
++
++def get_article_exclusion_reason(
++    article: RawArticle,
++    regulation: dict[str, Any],
++    relevance_score: int | None = None,
++) -> str | None:
++    text = f"{article['title']} {article['summary']} {article['source']}".lower()
++    if keyword_matches(
++        text,
++        [*_get_exclude_keywords(regulation), *LOW_QUALITY_EXCLUDE_KEYWORDS],
++    ):
++        return "excluded_by_keyword"
+ 
+     if relevance_score is None:
+-        return False
++        return None
+ 
+-    has_positive_signal = bool(
+-        keyword_matches(text, _get_positive_keywords(regulation))
+-        or keyword_matches(text, _get_industry_terms(regulation))
++    has_signal = has_required_or_positive_signal(text, regulation)
++    can_bypass_signal_gate = (
++        article_matches_trusted_source(article, regulation)
++        or relevance_score >= HIGH_RELEVANCE_SIGNAL_BYPASS_SCORE
+     )
+-    has_negative_signal = bool(keyword_matches(text, _get_negative_keywords(regulation)))
+ 
+-    if relevance_score <= _get_min_score(regulation) and has_negative_signal and not has_positive_signal:
+-        return True
++    if not has_required_context_for_overlap(text, regulation):
++        return "no_required_signal"
++
++    if not has_signal and not can_bypass_signal_gate:
++        return "no_required_signal"
++
++    if relevance_score < _get_min_score(regulation):
++        return "below_min_score"
++
++    return None
++
+ 
+-    return False
++def is_obvious_false_positive(
++    article: RawArticle,
++    regulation: dict[str, Any],
++    relevance_score: int | None = None,
++) -> bool:
++    return get_article_exclusion_reason(article, regulation, relevance_score) is not None
+ 
+ 
+ def merge_duplicate_item(existing: NewsArticle, item: NewsArticle) -> NewsArticle:
+@@ -1005,6 +1113,96 @@ def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
+     return deduped
+ 
+ 
++def build_balanced_all_news_items(
++    items_by_regulation: dict[str, list[NewsArticle]],
++    regulations: list[dict[str, Any]],
++    limit: int,
++) -> list[NewsArticle]:
++    if not items_by_regulation or limit <= 0:
++        return []
++
++    selected_by_key: dict[str, NewsArticle] = {}
++
++    def add_item(item: NewsArticle) -> None:
++        key = news_item_key(item)
++        existing = selected_by_key.get(key)
++        if existing:
++            merge_duplicate_item(existing, item)
++            return
++        selected_by_key[key] = copy.deepcopy(item)
++
++    if limit >= len(regulations):
++        guaranteed_count = min(
++            ALL_NEWS_MIN_ITEMS_PER_REGULATION,
++            max(limit // max(len(regulations), 1), 0),
++        )
++    else:
++        guaranteed_count = 0
++
++    for regulation in regulations:
++        if len(selected_by_key) >= limit:
++            break
++        for item in items_by_regulation.get(regulation["id"], [])[:guaranteed_count]:
++            if len(selected_by_key) >= limit:
++                break
++            add_item(item)
++
++    remaining_pool = [
++        item
++        for regulation in regulations
++        for item in items_by_regulation.get(regulation["id"], [])
++    ]
++    for item in dedupe_and_merge(remaining_pool):
++        if len(selected_by_key) >= limit:
++            break
++        add_item(item)
++
++    selected_items = list(selected_by_key.values())
++    selected_items.sort(
++        key=lambda item: (
++            item["relevanceScore"],
++            item["importanceScore"],
++            item["publishedAt"],
++        ),
++        reverse=True,
++    )
++    return selected_items[:limit]
++
++
++def new_quality_stats(regulation: dict[str, Any]) -> dict[str, Any]:
++    return {
++        "regulationId": regulation.get("id", ""),
++        "rawCount": 0,
++        "uniqueCount": 0,
++        "filterPassCount": 0,
++        "returnedCount": 0,
++        "minScore": _get_min_score(regulation),
++        "excluded": {
++            "excluded_by_keyword": 0,
++            "below_min_score": 0,
++            "no_required_signal": 0,
++            "duplicate": 0,
++        },
++    }
++
++
++def log_news_quality_stats(stats: dict[str, Any]) -> None:
++    excluded = stats["excluded"]
++    print(
++        "news_quality "
++        f"regulation={stats['regulationId']} "
++        f"raw={stats['rawCount']} "
++        f"unique={stats['uniqueCount']} "
++        f"filter_pass={stats['filterPassCount']} "
++        f"returned={stats['returnedCount']} "
++        f"min_score={stats['minScore']} "
++        f"excluded_by_keyword={excluded['excluded_by_keyword']} "
++        f"below_min_score={excluded['below_min_score']} "
++        f"no_required_signal={excluded['no_required_signal']} "
++        f"duplicate={excluded['duplicate']}"
++    )
++
++
+ def build_regulation_news_items_from_articles(
+     regulation: dict[str, Any],
+     articles_by_query: dict[str, list[RawArticle]],
+@@ -1016,20 +1214,35 @@ def build_regulation_news_items_from_articles(
+     )
+     collected: list[NewsArticle] = []
+     seen_raw_article_keys: set[str] = set()
++    stats = new_quality_stats(regulation)
+ 
+     for query in _get_search_queries(regulation):
+         for article in articles_by_query.get(query, []):
++            stats["rawCount"] += 1
+             article_key = raw_article_key(article)
+             if article_key in seen_raw_article_keys:
++                stats["excluded"]["duplicate"] += 1
+                 continue
+             seen_raw_article_keys.add(article_key)
++            stats["uniqueCount"] += 1
+ 
+             item = build_news_item(article, regulation)
+-            if is_obvious_false_positive(article, regulation, item["relevanceScore"]):
++            exclusion_reason = get_article_exclusion_reason(
++                article,
++                regulation,
++                item["relevanceScore"],
++            )
++            if exclusion_reason:
++                stats["excluded"][exclusion_reason] += 1
+                 continue
+             collected.append(item)
+ 
+-    return dedupe_and_merge(collected)[:item_limit]
++    deduped = dedupe_and_merge(collected)
++    stats["filterPassCount"] = len(collected)
++    stats["excluded"]["duplicate"] += max(len(collected) - len(deduped), 0)
++    stats["returnedCount"] = min(len(deduped), item_limit)
++    log_news_quality_stats(stats)
++    return deduped[:item_limit]
+ 
+ 
+ def fetch_regulation_news_items(
+@@ -1068,8 +1281,10 @@ def build_available_regulations(
+ ) -> list[dict[str, Any]]:
+     counts: dict[str, int] = {}
+     for item in items:
+-        regulation_id = item.get("regulationId")
+-        if regulation_id:
++        regulation_ids = item.get("relatedRegulationIds") or [item.get("regulationId")]
++        for regulation_id in regulation_ids:
++            if not regulation_id:
++                continue
+             counts[regulation_id] = counts.get(regulation_id, 0) + 1
+ 
+     available_regulations: list[dict[str, Any]] = []
+@@ -1165,7 +1380,7 @@ def fetch_all_rss_articles(
+     if cached is not None:
+         return cached
+ 
+-    collected: list[NewsArticle] = []
++    items_by_regulation: dict[str, list[NewsArticle]] = {}
+     all_queries: list[str] = []
+ 
+     for regulation in regulations:
+@@ -1186,10 +1401,14 @@ def fetch_all_rss_articles(
+                 _cache_set(_REGULATION_ITEMS_CACHE, reg_cache_key, items)
+             else:
+                 items = _cache_get(_REGULATION_ITEMS_CACHE, reg_cache_key, allow_stale=True) or []
+-        collected.extend(items)
++        items_by_regulation[regulation["id"]] = items
+ 
+     merged_limit = min(max(limit, DEFAULT_ALL_NEWS_LIMIT), MAX_ALL_NEWS_LIMIT)
+-    merged_items = dedupe_and_merge(collected)[:merged_limit]
++    merged_items = build_balanced_all_news_items(
++        items_by_regulation,
++        regulations,
++        merged_limit,
++    )
+ 
+     response = {
+         "items": merged_items,
+diff --git a/data/regulations.json b/data/regulations.json
+index ffb080d..33360c3 100644
+--- a/data/regulations.json
++++ b/data/regulations.json
+@@ -124,11 +124,17 @@
+           "sustainable products regulation ecodesign textiles"
+         ],
+         "required_keywords": [
++          "ESPR",
+           "ecodesign",
++          "ecodesign regulation",
+           "sustainable products",
+           "ESPR regulation",
+           "delegated act",
+-          "working plan"
++          "working plan",
++          "unsold goods",
++          "textile ecodesign",
++          "repairability",
++          "product sustainability requirements"
+         ],
+         "positive_keywords": [
+           "ESPR",
+@@ -153,6 +159,8 @@
+           "circular design",
+           "ecodesign of fans",
+           "fans ecodesign",
++          "repairability",
++          "right to repair",
+           "repair agenda"
+         ],
+         "industry_terms": [
+@@ -180,7 +188,26 @@
+           "Lexology",
+           "ESG Today"
+         ],
+-        "min_score": 0,
++        "overlap_keywords": [
++          "digital product passport",
++          "DPP",
++          "product passport",
++          "battery passport",
++          "digital battery passport"
++        ],
++        "context_keywords": [
++          "ESPR",
++          "ecodesign",
++          "Ecodesign for Sustainable Products Regulation",
++          "working plan",
++          "delegated act",
++          "unsold goods",
++          "unsold consumer products",
++          "textile ecodesign",
++          "repairability",
++          "product sustainability requirements"
++        ],
++        "min_score": 5,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -209,6 +236,44 @@
+           "webinar"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "framework_regulation",
++          "delegated_acts_required",
++          "standards_required",
++          "phased_application"
++        ],
++        "lifecycle_status": "phased_application",
++        "current_stage": {
++          "stage_id": "secondary_legislation",
++          "stage_label": "품목별 세부규칙 준비 단계",
++          "stage_owner": "European Commission",
++          "stage_status": "in_progress",
++          "confidence": "medium"
++        },
++        "next_event": {
++          "event_label": "우선 품목군별 위임입법 공개",
++          "event_type": "delegated_act",
++          "expected_date": "2026",
++          "date_precision": "year",
++          "owner": "European Commission",
++          "status": "expected"
++        },
++        "business_action": {
++          "now": "대상 품목 여부와 제품 데이터 보유 수준 점검",
++          "next_90_days": "DPP·에코디자인 데이터 갭 분석",
++          "before_next_event": "위임입법 초안 공개 시 영향 품목 매핑"
++        },
++        "schedule_risk": {
++          "level": "medium",
++          "drivers": [
++            "위임입법 일정 변동",
++            "표준화 지연"
++          ],
++          "user_message": "법은 시행 중이나 기업별 실질 의무는 품목별 세부규칙에 따라 달라질 수 있음"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2022-03-30",
+@@ -445,7 +510,7 @@
+           "Euractiv",
+           "Recycling Today"
+         ],
+-        "min_score": 0,
++        "min_score": 6,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -462,6 +527,43 @@
+           "openPR"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "framework_regulation",
++          "delegated_acts_required",
++          "phased_application"
++        ],
++        "lifecycle_status": "phased_application",
++        "current_stage": {
++          "stage_id": "transition_period",
++          "stage_label": "기업 준비기간",
++          "stage_owner": "European Commission / Member States",
++          "stage_status": "in_progress",
++          "confidence": "high"
++        },
++        "next_event": {
++          "event_label": "주요 포장 의무 적용 시작",
++          "event_type": "application",
++          "expected_date": "2026-08-12",
++          "date_precision": "day",
++          "owner": "Economic operators / Member States",
++          "status": "scheduled"
++        },
++        "business_action": {
++          "now": "EU 수출 제품의 포장재 현황과 재생원료 함량 점검",
++          "next_90_days": "2026년 적용 시작 전 포장재 전환 로드맵 수립",
++          "before_next_event": "제품군별 포장 설계·재활용성·표시 요건 갭 분석 완료"
++        },
++        "schedule_risk": {
++          "level": "low",
++          "drivers": [
++            "포장 유형별 세부 기준 업데이트",
++            "회원국 집행 준비 차이"
++          ],
++          "user_message": "주요 적용일은 확정되어 있으나 포장 유형별 세부 이행 기준은 계속 확인 필요"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2022-11-30",
+@@ -709,7 +811,7 @@
+           "JD Supra",
+           "Latham"
+         ],
+-        "min_score": 0,
++        "min_score": 4,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -726,6 +828,44 @@
+           "training course"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "directive_transposition",
++          "phased_application",
++          "revision_or_simplification"
++        ],
++        "lifecycle_status": "scaled_back_and_delayed",
++        "current_stage": {
++          "stage_id": "national_transposition",
++          "stage_label": "회원국 전환입법 및 가이드라인 준비 단계",
++          "stage_owner": "Member States / European Commission",
++          "stage_status": "in_progress",
++          "confidence": "medium"
++        },
++        "next_event": {
++          "event_label": "EU 집행위 실사 가이드라인 발행",
++          "event_type": "guidance",
++          "expected_date": "2027-07",
++          "date_precision": "month",
++          "owner": "European Commission",
++          "status": "expected"
++        },
++        "business_action": {
++          "now": "EU 매출과 1차 공급망 지위를 기준으로 직접·간접 적용 가능성 점검",
++          "next_90_days": "대형 EU 고객사의 실사 요청에 대응할 기본 자료와 책임 체계 정비",
++          "before_next_event": "가이드라인 공개 시 공급망 실사 절차와 계약 조항 재점검"
++        },
++        "schedule_risk": {
++          "level": "high",
++          "drivers": [
++            "회원국별 전환입법 차이",
++            "Omnibus 이후 세부 해석 변화",
++            "가이드라인 범위 불확실성"
++          ],
++          "user_message": "최종 적용 시점은 늦춰졌지만 회원국 이행과 가이드라인에 따라 기업 준비 범위가 달라질 수 있음"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2022-02-23",
+@@ -1004,7 +1144,7 @@
+           "Lexology",
+           "JD Supra"
+         ],
+-        "min_score": 0,
++        "min_score": 4,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -1015,6 +1155,45 @@
+           "drug"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "reporting_disclosure",
++          "directive_transposition",
++          "standards_required",
++          "revision_or_simplification"
++        ],
++        "lifecycle_status": "scaled_back_and_delayed",
++        "current_stage": {
++          "stage_id": "revision_simplification",
++          "stage_label": "Omnibus 개정 및 ESRS 간소화 단계",
++          "stage_owner": "European Commission / EFRAG",
++          "stage_status": "in_progress",
++          "confidence": "medium"
++        },
++        "next_event": {
++          "event_label": "간소화 ESRS 위임입법 채택",
++          "event_type": "standards_update",
++          "expected_date": "2026-09",
++          "date_precision": "month",
++          "owner": "European Commission",
++          "status": "expected"
++        },
++        "business_action": {
++          "now": "EU 법인·자회사 기준으로 Wave 1/Wave 2 대상 여부 재판정",
++          "next_90_days": "Scope 1·2·3 및 공급망 데이터 수집 체계 유지",
++          "before_next_event": "간소화 ESRS 확정 후 보고 항목과 데이터 갭 재평가"
++        },
++        "schedule_risk": {
++          "level": "high",
++          "drivers": [
++            "Omnibus 입법 변화",
++            "ESRS 간소화 범위",
++            "회원국 이행 차이"
++          ],
++          "user_message": "보고 의무의 방향은 유지되지만 대상 기업과 보고 범위는 변동 가능성이 큼"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2021-04-21",
+@@ -1307,7 +1486,7 @@
+           "Argus",
+           "Eurometal"
+         ],
+-        "min_score": 0,
++        "min_score": 4,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -1318,6 +1497,42 @@
+           "drug"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "trade_border",
++          "phased_application"
++        ],
++        "lifecycle_status": "financial_phase_preparation",
++        "current_stage": {
++          "stage_id": "phased_application",
++          "stage_label": "본격 단계 진입 및 인증서 구매 준비 단계",
++          "stage_owner": "European Commission / National Competent Authorities",
++          "stage_status": "in_progress",
++          "confidence": "high"
++        },
++        "next_event": {
++          "event_label": "CBAM 인증서 판매 시작",
++          "event_type": "financial_obligation",
++          "expected_date": "2027-02-01",
++          "date_precision": "day",
++          "owner": "European Commission / National Competent Authorities",
++          "status": "scheduled"
++        },
++        "business_action": {
++          "now": "EU 수출 품목의 CBAM 대상 여부와 연간 수량 확인",
++          "next_90_days": "제품별 embedded emissions 산정 체계와 수입자 제출 방식 점검",
++          "before_next_event": "인증서 구매와 2027년 첫 연간 신고에 필요한 배출량 데이터 책임 범위 합의"
++        },
++        "schedule_risk": {
++          "level": "low",
++          "drivers": [
++            "방법론 세부지침 업데이트",
++            "품목 범위 확대 논의"
++          ],
++          "user_message": "핵심 일정은 비교적 명확하나 세부 방법론과 확대 범위는 계속 모니터링 필요"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2021-07-14",
+@@ -1567,7 +1782,7 @@
+           "Forest Trends",
+           "ClientEarth"
+         ],
+-        "min_score": 0,
++        "min_score": 4,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -1578,6 +1793,44 @@
+           "drug"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "framework_regulation",
++          "phased_application",
++          "revision_or_simplification"
++        ],
++        "lifecycle_status": "delayed_application",
++        "current_stage": {
++          "stage_id": "revision_simplification",
++          "stage_label": "간소화 검토 및 적용 유예 단계",
++          "stage_owner": "European Commission",
++          "stage_status": "delayed",
++          "confidence": "medium"
++        },
++        "next_event": {
++          "event_label": "대기업·중기업 EUDR 의무 적용",
++          "event_type": "application",
++          "expected_date": "2026-12-30",
++          "date_precision": "day",
++          "owner": "Operators / Competent Authorities",
++          "status": "scheduled"
++        },
++        "business_action": {
++          "now": "EUDR 대상 원자재 포함 제품과 공급업체 원산지 데이터를 점검",
++          "next_90_days": "DDS 제출에 필요한 지리좌표·추적성 데이터 확보 수준 확인",
++          "before_next_event": "대기업 적용 전 공급업체 증빙과 위험평가 프로세스 정비"
++        },
++        "schedule_risk": {
++          "level": "high",
++          "drivers": [
++            "추가 간소화 검토",
++            "적용 일정 재조정 가능성",
++            "공급국·회원국 집행 준비 차이"
++          ],
++          "user_message": "적용일은 법적 근거가 있으나 추가 간소화 논의로 실무 요구사항이 변동될 수 있음"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2021-11-17",
+@@ -1835,7 +2088,7 @@
+           "Latham",
+           "Lexology"
+         ],
+-        "min_score": 0,
++        "min_score": 4,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -1862,6 +2115,43 @@
+           "top 5 companies"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "directive_transposition",
++          "revision_or_simplification"
++        ],
++        "lifecycle_status": "uncertain",
++        "current_stage": {
++          "stage_id": "revision_simplification",
++          "stage_label": "입법 철회·대체입법 여부 불확실 단계",
++          "stage_owner": "European Commission",
++          "stage_status": "uncertain",
++          "confidence": "medium"
++        },
++        "next_event": {
++          "event_label": "공식 철회 또는 대체 입법 방향 확인",
++          "event_type": "policy_decision",
++          "expected_date": "",
++          "date_precision": "unknown",
++          "owner": "European Commission",
++          "status": "uncertain"
++        },
++        "business_action": {
++          "now": "EU 마케팅의 친환경·탄소중립·지속가능 표현과 실증 근거를 목록화",
++          "next_90_days": "회원국별 그린워싱 규제와 소비자보호 집행 동향 확인",
++          "before_next_event": "대체 입법 또는 철회 확정 시 클레임 검증 체계 재조정"
++        },
++        "schedule_risk": {
++          "level": "high",
++          "drivers": [
++            "공식 철회 절차 미완료",
++            "대체 입법 가능성",
++            "회원국별 개별 규제 강화"
++          ],
++          "user_message": "EU 차원의 일정은 불확실하지만 그린워싱 표현에 대한 실증 요구는 회원국과 소비자보호 규제로 계속 관리 필요"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2023-03-22",
+@@ -2108,7 +2398,7 @@
+           "Lexology",
+           "IAPP"
+         ],
+-        "min_score": 0,
++        "min_score": 4,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -2132,6 +2422,44 @@
+           "drug"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "framework_regulation",
++          "standards_required",
++          "phased_application"
++        ],
++        "lifecycle_status": "phased_application",
++        "current_stage": {
++          "stage_id": "standards_guidance",
++          "stage_label": "단계별 의무 적용 및 고위험 AI 세부기준 준비 단계",
++          "stage_owner": "European Commission / EU AI Office",
++          "stage_status": "in_progress",
++          "confidence": "medium"
++        },
++        "next_event": {
++          "event_label": "고위험 AI 의무 적용 예정",
++          "event_type": "application",
++          "expected_date": "2026-08-02",
++          "date_precision": "day",
++          "owner": "European Commission / EU AI Office",
++          "status": "expected"
++        },
++        "business_action": {
++          "now": "사용 중인 AI 시스템을 목록화하고 금지 AI·고위험 AI 해당 여부를 1차 분류",
++          "next_90_days": "GPAI와 고위험 AI 관련 공급업체 문서·거버넌스 체계 점검",
++          "before_next_event": "고위험 AI 일정 조정 여부 확정 시 내부 통제와 적합성 평가 준비 수준 재점검"
++        },
++        "schedule_risk": {
++          "level": "medium",
++          "drivers": [
++            "고위험 AI 일정 조정 논의",
++            "표준·가이드라인 확정 지연",
++            "AI 시스템 분류 해석 차이"
++          ],
++          "user_message": "법정 단계 일정은 제시되어 있으나 고위험 AI 일부 일정 조정 논의가 있어 확정 D-day로 보지 않는 것이 안전함"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2021-04-21",
+@@ -2404,28 +2732,38 @@
+         "search_queries": [
+           "EU Battery Regulation digital battery passport 2027",
+           "EU Battery Regulation recycled content carbon footprint compliance",
+-          "Digital Battery Passport battery data interoperability",
+-          "battery passport carbon footprint data supply chain",
++          "EU Digital Battery Passport battery data interoperability",
++          "EU battery passport carbon footprint recycled content",
+           "Catena-X battery passport data space",
+-          "EU China battery traceability standards"
++          "EU Battery Regulation China battery traceability standards"
+         ],
+         "required_keywords": [
++          "EU Battery Regulation",
+           "battery regulation",
+           "EU battery",
+           "digital battery passport",
++          "battery passport",
+           "DBP",
+           "battery EU 2023/1542",
+-          "battery carbon footprint"
++          "Regulation (EU) 2023/1542",
++          "EU 2023/1542",
++          "battery carbon footprint",
++          "battery due diligence",
++          "battery recycled content"
+         ],
+         "positive_keywords": [
+-          "Battery Regulation",
++          "EU Battery Regulation",
++          "Regulation (EU) 2023/1542",
++          "EU 2023/1542",
+           "digital battery passport",
+           "Battery Passport",
+           "battery carbon footprint",
+-          "battery data",
+-          "battery lifecycle tracking",
+-          "battery data space",
+-          "supply chain traceability"
++          "battery carbon footprint declaration",
++          "battery due diligence",
++          "battery recycled content",
++          "recycled content for batteries",
++          "battery supply chain due diligence",
++          "battery traceability regulation"
+         ],
+         "industry_terms": [
+           "Catena-X",
+@@ -2439,9 +2777,22 @@
+           "EV batteries"
+         ],
+         "negative_keywords": [
++          "battery data",
++          "EV batteries",
++          "battery analytics",
++          "battery show",
++          "battery funding",
++          "battery market",
++          "battery platform",
++          "battery startup",
++          "battery conference",
++          "EV battery market",
++          "battery market report",
++          "battery market size",
+           "battery price",
+           "battery materials price",
+           "lithium price",
++          "lithium market",
+           "market analysis",
+           "stock",
+           "earnings",
+@@ -2452,11 +2803,9 @@
+           "Battery Pass",
+           "Catena-X",
+           "Reuters",
+-          "Benchmark",
+-          "Battery News",
+           "ESG Today"
+         ],
+-        "min_score": 0,
++        "min_score": 7,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -2466,9 +2815,57 @@
+           "drug",
+           "pharmaceutical",
+           "battery stock",
+-          "EV stock price"
++          "EV stock price",
++          "battery analytics platform",
++          "battery show",
++          "battery conference",
++          "battery funding",
++          "battery startup funding",
++          "EV battery market",
++          "battery market report",
++          "battery market size",
++          "battery market forecast"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "framework_regulation",
++          "delegated_acts_required",
++          "standards_required",
++          "phased_application"
++        ],
++        "lifecycle_status": "phased_application",
++        "current_stage": {
++          "stage_id": "standards_guidance",
++          "stage_label": "탄소발자국·DBP 세부기준 준비 단계",
++          "stage_owner": "European Commission",
++          "stage_status": "in_progress",
++          "confidence": "high"
++        },
++        "next_event": {
++          "event_label": "디지털 배터리 여권(DBP) 의무 시작",
++          "event_type": "application",
++          "expected_date": "2027-02-18",
++          "date_precision": "day",
++          "owner": "Economic operators / European Commission",
++          "status": "scheduled"
++        },
++        "business_action": {
++          "now": "EU 납품·수출 배터리 유형과 의무 적용 일정을 분류",
++          "next_90_days": "탄소발자국·원산지·재활용 함량·실사 데이터 보유 수준 점검",
++          "before_next_event": "DBP 등록소와 데이터 교환 요건 확정 시 시스템 연계 방안 수립"
++        },
++        "schedule_risk": {
++          "level": "medium",
++          "drivers": [
++            "탄소발자국 계산 방법 위임입법",
++            "재활용 함량 세부 기준",
++            "DBP 등록소 운영 규칙"
++          ],
++          "user_message": "DBP 의무 시작일은 확정되어 있으나 데이터 항목과 운영 방식은 후속 기준을 계속 확인해야 함"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2020-12-10",
+@@ -2731,7 +3128,7 @@
+           "Reuters",
+           "Lexology"
+         ],
+-        "min_score": 0,
++        "min_score": 5,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -2755,6 +3152,45 @@
+           "DPP IV"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "framework_regulation",
++          "delegated_acts_required",
++          "standards_required",
++          "phased_application"
++        ],
++        "lifecycle_status": "phased_application",
++        "current_stage": {
++          "stage_id": "secondary_legislation",
++          "stage_label": "품목별 DPP 세부규칙 및 등록소 준비 단계",
++          "stage_owner": "European Commission",
++          "stage_status": "in_progress",
++          "confidence": "medium"
++        },
++        "next_event": {
++          "event_label": "배터리 DBP 선행 적용",
++          "event_type": "application",
++          "expected_date": "2027-02-18",
++          "date_precision": "day",
++          "owner": "Economic operators / European Commission",
++          "status": "scheduled"
++        },
++        "business_action": {
++          "now": "ESPR 우선 품목과 배터리 탑재 제품의 DPP 적용 가능성을 구분",
++          "next_90_days": "제품 식별자, 공급망 데이터, 배터리 데이터 연계 수준 점검",
++          "before_next_event": "배터리 DBP 요건을 우선 반영하고 ESPR 품목별 위임입법 공개 시 확대 적용"
++        },
++        "schedule_risk": {
++          "level": "medium",
++          "drivers": [
++            "ESPR 품목별 위임입법 일정",
++            "DPP 등록소 운영 규칙",
++            "데이터 표준 상호운용성"
++          ],
++          "user_message": "배터리 DBP는 선행 일정이 명확하지만 일반 제품 DPP는 품목별 세부규칙에 따라 실제 적용 시점이 달라짐"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2022-03-30",
+@@ -2917,7 +3353,7 @@
+           "Waste Today",
+           "European Commission"
+         ],
+-        "min_score": 0,
++        "min_score": 6,
+         "max_items": 30,
+         "exclude_keywords": [
+           "stock",
+@@ -2940,6 +3376,43 @@
+           "plastic packaging market"
+         ]
+       },
++      "tracking": {
++        "regulation_types": [
++          "framework_regulation",
++          "delegated_acts_required"
++        ],
++        "lifecycle_status": "legislative_negotiation",
++        "current_stage": {
++          "stage_id": "trilogue",
++          "stage_label": "트라일로그 진행 단계",
++          "stage_owner": "European Parliament / Council / European Commission",
++          "stage_status": "in_progress",
++          "confidence": "medium"
++        },
++        "next_event": {
++          "event_label": "정치적 합의 또는 최종 채택 방향 확인",
++          "event_type": "political_agreement",
++          "expected_date": "2026",
++          "date_precision": "year",
++          "owner": "European Parliament / Council / European Commission",
++          "status": "expected"
++        },
++        "business_action": {
++          "now": "완성차·부품·플라스틱 공급망에서 재생원료 사용 가능성과 데이터 추적 수준 점검",
++          "next_90_days": "자동차용 재생 플라스틱 조달·품질 기준과 공급처 후보 검토",
++          "before_next_event": "최종 합의안 공개 시 재생 함량 목표와 적용 대상 부품을 매핑"
++        },
++        "schedule_risk": {
++          "level": "medium",
++          "drivers": [
++            "Trilogue 합의 지연",
++            "재생 플라스틱 함량 목표 조정",
++            "적용 시점 미확정"
++          ],
++          "user_message": "아직 최종 채택 전이므로 기업 의무 적용 시점과 세부 목표는 정치적 합의 결과에 따라 달라질 수 있음"
++        },
++        "last_verified_at": "2026-06-05"
++      },
+       "history": [
+         {
+           "date": "2023-07-13",
+diff --git a/frontend/app/page.tsx b/frontend/app/page.tsx
+index f61db6f..a2005ac 100644
+--- a/frontend/app/page.tsx
++++ b/frontend/app/page.tsx
+@@ -4,6 +4,16 @@ import { Sidebar } from "@/components/sidebar";
+ import { Topbar } from "@/components/topbar";
+ import { getRegulations } from "@/lib/api";
+ import { REGULATION_MASTER } from "@/data/regulations.master";
++import {
++  calculateTrackingDDay,
++  formatTrackingDateLabel,
++  formatTrackingEventTiming,
++  getTrackingEventSortValue,
++  getTrackingOwner,
++  getTrackingRiskClass,
++  getTrackingRiskLabel,
++  hasTracking,
++} from "@/lib/tracking";
+ 
+ // ─────────────────────────────────────────
+ // 백엔드 API base URL
+@@ -230,7 +240,10 @@ export default async function DashboardPage() {
+   ]);
+ 
+   const urgentCount = regulations.filter(
+-    (r) => typeof r.dDay === "number" && r.dDay >= 0 && r.dDay <= 90
++    (r) => {
++      const dDay = calculateTrackingDDay(r.tracking);
++      return typeof dDay === "number" && dDay >= 0 && dDay <= 90;
++    }
+   ).length;
+ 
+   const updatedCount = regulations.filter(
+@@ -241,6 +254,26 @@ export default async function DashboardPage() {
+     year: "numeric", month: "long", day: "numeric",
+   });
+ 
++  const trackingEvents = regulations
++    .filter(hasTracking)
++    .map((reg) => ({
++      regulation: reg,
++      dDay: calculateTrackingDDay(reg.tracking),
++      sortValue: getTrackingEventSortValue(reg),
++    }));
++  const nextCoreEvents = [
++    ...trackingEvents
++      .filter((item) => item.dDay !== null)
++      .sort((a, b) => a.sortValue - b.sortValue),
++    ...trackingEvents
++      .filter((item) => item.dDay === null)
++      .sort((a, b) =>
++        (a.regulation.tracking?.next_event?.expected_date || "9999").localeCompare(
++          b.regulation.tracking?.next_event?.expected_date || "9999"
++        )
++      ),
++  ].slice(0, 8);
++
+   return (
+     <div className="flex min-h-screen bg-[#f8fafc]">
+       <Sidebar />
+@@ -275,6 +308,66 @@ export default async function DashboardPage() {
+             ))}
+           </div>
+ 
++          {/* 다음 핵심 규제 이벤트 */}
++          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
++            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
++              <div>
++                <h2 className="text-sm font-black text-navy">다음 핵심 규제 이벤트</h2>
++                <p className="mt-0.5 text-xs text-slate-400">
++                  확정일은 D-day로, 예상 일정은 별도 라벨로 표시합니다
++                </p>
++              </div>
++              <a href="/regulations" className="text-xs font-bold text-emeraldBrand hover:underline">규제 DB 보기 →</a>
++            </div>
++            <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-4">
++              {nextCoreEvents.map(({ regulation, dDay }) => {
++                const riskLevel = regulation.tracking?.schedule_risk?.level;
++                return (
++                  <a
++                    key={regulation.id}
++                    href={`/regulations/${regulation.id}`}
++                    className="block rounded-lg border border-slate-200 p-4 transition hover:border-emeraldBrand hover:bg-slate-50"
++                  >
++                    <div className="flex items-start justify-between gap-3">
++                      <div className="flex min-w-0 items-center gap-2">
++                        <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(regulation.code)}`}>
++                          {regulation.code}
++                        </span>
++                        <p className="truncate text-sm font-black text-navy">
++                          {regulation.name_ko || regulation.title}
++                        </p>
++                      </div>
++                      {riskLevel === "high" && (
++                        <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">
++                          위험
++                        </span>
++                      )}
++                    </div>
++                    <p className="mt-3 line-clamp-2 text-sm font-bold leading-snug text-slate-700">
++                      {regulation.tracking?.next_event?.event_label || "다음 이벤트 확인 필요"}
++                    </p>
++                    <div className="mt-3 flex flex-wrap gap-2">
++                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
++                        {formatTrackingDateLabel(regulation.tracking)}
++                      </span>
++                      {dDay !== null && dDay >= 0 && (
++                        <span className="rounded-full bg-red-50 px-2 py-0.5 font-mono text-[11px] font-bold text-red-600">
++                          {formatTrackingEventTiming(regulation.tracking)}
++                        </span>
++                      )}
++                    </div>
++                    <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
++                      담당 주체: {getTrackingOwner(regulation.tracking)}
++                    </p>
++                    <span className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${getTrackingRiskClass(riskLevel)}`}>
++                      일정 리스크 {getTrackingRiskLabel(riskLevel)}
++                    </span>
++                  </a>
++                );
++              })}
++            </div>
++          </section>
++
+           {/* 규제 동향 테이블 + 지역 맵 */}
+           <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
+ 
+@@ -302,7 +395,12 @@ export default async function DashboardPage() {
+                     {regulations.map((reg) => {
+                       const badge = getStatusBadge(reg.statusTone, reg.status);
+                       const master = REGULATION_MASTER.find((m) => m.id === reg.id);
+-                      const checkpoint = reg.card_date_label || "—";
++                      const checkpoint =
++                        reg.tracking?.next_event?.event_label || reg.card_date_label || "—";
++                      const checkpointTiming = hasTracking(reg)
++                        ? formatTrackingDateLabel(reg.tracking)
++                        : reg.card_date_value || reg.deadline;
++                      const trackingDday = calculateTrackingDDay(reg.tracking);
+                       return (
+                         <tr key={reg.id} className="hover:bg-slate-50">
+                           <td className="px-4 py-3">
+@@ -326,8 +424,19 @@ export default async function DashboardPage() {
+                               {badge.label}
+                             </span>
+                           </td>
+-                          <td className="max-w-[180px] truncate px-4 py-3 text-xs text-slate-500">{checkpoint}</td>
+-                          <td className="px-4 py-3 text-center"><DDayBadge dDay={reg.dDay ?? undefined} /></td>
++                          <td className="max-w-[220px] px-4 py-3 text-xs text-slate-500">
++                            <p className="truncate font-semibold text-slate-600">{checkpoint}</p>
++                            <p className="mt-0.5 text-[11px] text-slate-400">{checkpointTiming}</p>
++                          </td>
++                          <td className="px-4 py-3 text-center">
++                            {trackingDday !== null ? (
++                              <DDayBadge dDay={trackingDday} />
++                            ) : (
++                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
++                                {reg.tracking?.next_event?.status === "uncertain" ? "시점 미정" : "예상"}
++                              </span>
++                            )}
++                          </td>
+                         </tr>
+                       );
+                     })}
+diff --git a/frontend/app/regulations/[id]/page.tsx b/frontend/app/regulations/[id]/page.tsx
+index faccc60..98339c7 100644
+--- a/frontend/app/regulations/[id]/page.tsx
++++ b/frontend/app/regulations/[id]/page.tsx
+@@ -13,6 +13,13 @@ import {
+   getRegulationDetail,
+   summarizeRegulation,
+ } from "@/lib/api";
++import {
++  formatTrackingDateLabel,
++  getTrackingOwner,
++  getTrackingRiskClass,
++  getTrackingRiskLabel,
++  hasTracking,
++} from "@/lib/tracking";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -184,6 +191,50 @@ export default async function RegulationDetailPage({
+             </div>
+           </div>
+ 
++          {hasTracking(regulation) && (
++            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
++              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
++                <div>
++                  <h2 className="text-base font-bold text-navy">현재 단계</h2>
++                  <p className="mt-1 text-xs text-slate-400">
++                    지금 어디까지 왔고, 다음 공이 누구에게 있는지 요약합니다.
++                  </p>
++                </div>
++                <span
++                  className={`w-fit rounded-full border px-2.5 py-1 text-xs font-bold ${getTrackingRiskClass(
++                    regulation.tracking?.schedule_risk?.level
++                  )}`}
++                >
++                  일정 리스크 {getTrackingRiskLabel(regulation.tracking?.schedule_risk?.level)}
++                </span>
++              </div>
++
++              <div className="grid gap-3 md:grid-cols-5">
++                <TrackingMetric
++                  label="현재 단계"
++                  value={regulation.tracking?.current_stage?.stage_label}
++                />
++                <TrackingMetric
++                  label="담당 주체"
++                  value={getTrackingOwner(regulation.tracking)}
++                />
++                <TrackingMetric
++                  label="다음 이벤트"
++                  value={regulation.tracking?.next_event?.event_label}
++                  subValue={formatTrackingDateLabel(regulation.tracking)}
++                />
++                <TrackingMetric
++                  label="기업 행동 포인트"
++                  value={regulation.tracking?.business_action?.now}
++                />
++                <TrackingMetric
++                  label="일정 리스크"
++                  value={regulation.tracking?.schedule_risk?.user_message}
++                />
++              </div>
++            </section>
++          )}
++
+           <section className="grid gap-4 lg:grid-cols-[1fr_280px]">
+             <div className="space-y-4">
+               <Panel title="Impact ON 해설">
+@@ -351,6 +402,26 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
+   );
+ }
+ 
++function TrackingMetric({
++  label,
++  value,
++  subValue,
++}: {
++  label: string;
++  value?: string;
++  subValue?: string;
++}) {
++  return (
++    <div className="rounded-lg bg-slate-50 px-3 py-3">
++      <p className="text-xs font-black text-slate-500">{label}</p>
++      <p className="mt-1 text-sm font-bold leading-relaxed text-navy">
++        {value || "확인 필요"}
++      </p>
++      {subValue && <p className="mt-1 text-xs text-slate-400">{subValue}</p>}
++    </div>
++  );
++}
++
+ function ImpactColumn({
+   title,
+   tone,
+diff --git a/frontend/app/regulations/page.tsx b/frontend/app/regulations/page.tsx
+index f2fbd2f..f13690d 100644
+--- a/frontend/app/regulations/page.tsx
++++ b/frontend/app/regulations/page.tsx
+@@ -9,6 +9,11 @@ import type {
+   RegulationOfficialMetadata,
+   RegulationSummary,
+ } from "@/types/dashboard";
++import {
++  formatTrackingDateLabel,
++  getTrackingOwner,
++  hasTracking,
++} from "@/lib/tracking";
+ 
+ const STATUS_STYLE: Record<string, string> = {
+   success: "bg-green-50 text-green-700",
+@@ -83,12 +88,33 @@ function getIndustries(reg: Regulation) {
+ }
+ 
+ function getNextMilestone(reg: RegulationSummary) {
++  if (hasTracking(reg)) {
++    return {
++      label: reg.tracking?.next_event?.event_label || "다음 이벤트",
++      value: formatTrackingDateLabel(reg.tracking),
++    };
++  }
++
+   return {
+     label: reg.card_date_label || reg.deadlineLabel || "다음 일정",
+     value: reg.card_date_value || reg.deadline || "미정",
+   };
+ }
+ 
++function getCurrentStage(reg: RegulationSummary) {
++  if (hasTracking(reg)) {
++    return {
++      label: reg.tracking?.current_stage?.stage_label || reg.status,
++      owner: getTrackingOwner(reg.tracking),
++    };
++  }
++
++  return {
++    label: reg.status,
++    owner: "",
++  };
++}
++
+ function matchesStatusFilter(reg: RegulationSummary, status: string) {
+   if (!status) return true;
+   const values = [reg.statusKey, reg.statusTone].filter(Boolean);
+@@ -122,6 +148,10 @@ export default function RegulationsPage() {
+         reg.country,
+         reg.industry,
+         reg.status,
++        reg.tracking?.current_stage?.stage_label,
++        reg.tracking?.current_stage?.stage_owner,
++        reg.tracking?.next_event?.event_label,
++        reg.tracking?.next_event?.owner,
+         metadata.source_name,
+         metadata.celex_id,
+       ]
+@@ -156,6 +186,41 @@ export default function RegulationsPage() {
+           </div>
+ 
+           <div className="space-y-3">
++            <section className="rounded-lg border border-emerald-100 bg-white p-4 shadow-sm">
++              <div className="grid gap-4 lg:grid-cols-[1.2fr_1.8fr]">
++                <div>
++                  <h2 className="text-sm font-black text-navy">EU 규제 진행 단계</h2>
++                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
++                    EU 규제는 법안이 발효돼도 곧바로 기업 의무가 발생하지 않을 수 있습니다.
++                    위임법령, 이행법령, 기술표준, 회원국 전환입법 등 후속 절차에 따라 실제
++                    적용 시점이 달라집니다.
++                  </p>
++                </div>
++                <ol className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
++                  {[
++                    "집행위 제안",
++                    "의회·이사회 심의",
++                    "트라일로그",
++                    "최종 채택",
++                    "관보 게재·발효",
++                    "세부규칙·표준 마련",
++                    "기업 준비기간",
++                    "의무 적용·집행",
++                  ].map((step, index) => (
++                    <li
++                      key={step}
++                      className="flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-2"
++                    >
++                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-black text-emerald-700">
++                        {index + 1}
++                      </span>
++                      <span className="font-semibold">{step}</span>
++                    </li>
++                  ))}
++                </ol>
++              </div>
++            </section>
++
+             <div className="flex flex-wrap gap-2">
+               {CATEGORY_FILTERS.map((filter) => (
+                 <button
+@@ -224,11 +289,11 @@ export default function RegulationsPage() {
+                     <th className="w-36 px-4 py-3 text-left text-[11px] font-black text-slate-500">
+                       분야
+                     </th>
+-                    <th className="w-32 px-4 py-3 text-left text-[11px] font-black text-slate-500">
+-                      상태
++                    <th className="min-w-[220px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
++                      현재 단계
+                     </th>
+-                    <th className="w-44 px-4 py-3 text-left text-[11px] font-black text-slate-500">
+-                      다음 일정
++                    <th className="min-w-[220px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
++                      다음 이벤트
+                     </th>
+                     <th className="min-w-[220px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
+                       영향 산업
+@@ -245,6 +310,7 @@ export default function RegulationsPage() {
+                   {filteredRegulations.map((reg) => {
+                     const metadata = getOfficialMetadata(reg);
+                     const milestone = getNextMilestone(reg);
++                    const currentStage = getCurrentStage(reg);
+                     const officialUrl =
+                       metadata.official_document_url || metadata.source_url || reg.official_url;
+ 
+@@ -294,18 +360,25 @@ export default function RegulationsPage() {
+                           </span>
+                         </td>
+                         <td className="px-4 py-3.5">
+-                          <span
+-                            className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+-                              STATUS_STYLE[reg.statusTone] ??
+-                              STATUS_STYLE[reg.statusKey ?? ""] ??
+-                              "bg-slate-100 text-slate-600"
+-                            }`}
+-                          >
+-                            {reg.status}
+-                          </span>
++                          <div>
++                            <span
++                              className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold leading-snug ${
++                                STATUS_STYLE[reg.statusTone] ??
++                                STATUS_STYLE[reg.statusKey ?? ""] ??
++                                "bg-slate-100 text-slate-600"
++                              }`}
++                            >
++                              {currentStage.label}
++                            </span>
++                            {currentStage.owner && (
++                              <p className="mt-1 text-[11px] leading-snug text-slate-400">
++                                {currentStage.owner}
++                              </p>
++                            )}
++                          </div>
+                         </td>
+                         <td className="px-4 py-3.5">
+-                          <p className="text-xs font-bold text-slate-400">
++                          <p className="line-clamp-2 text-xs font-bold text-slate-500">
+                             {milestone.label}
+                           </p>
+                           <p className="mt-1 text-sm font-semibold text-navy">
+diff --git a/frontend/lib/api.ts b/frontend/lib/api.ts
+index 27e97d5..e932a18 100644
+--- a/frontend/lib/api.ts
++++ b/frontend/lib/api.ts
+@@ -6,6 +6,7 @@ import type {
+   RegulationOfficialMetadata,
+   RegulationDetail,
+   RegulationSummary,
++  RegulationTracking,
+ } from "@/types/dashboard";
+ import regulationsData from "../../data/regulations.json";
+ import { emptyNewsFeed, fetchBackendNews } from "@/lib/news/googleNews";
+@@ -65,6 +66,7 @@ type OldRegulation = {
+     priority?: string;
+   };
+   action_checkpoints?: Record<string, string | string[] | undefined>;
++  tracking?: RegulationTracking;
+   korean_company_note?: string;
+   company_mapping?: {
+     industries?: string[];
+@@ -305,6 +307,7 @@ function convertRegulation(reg: OldRegulation): RegulationDetail {
+     history: reg.history,
+     display: reg.display ?? {},
+     action_checkpoints: reg.action_checkpoints ?? {},
++    tracking: reg.tracking ?? {},
+     korean_company_note: reg.korean_company_note,
+     company_mapping: reg.company_mapping ?? {},
+     why_it_matters: reg.why_it_matters,
+diff --git a/frontend/types/dashboard.ts b/frontend/types/dashboard.ts
+index 18d3f1c..516d08d 100644
+--- a/frontend/types/dashboard.ts
++++ b/frontend/types/dashboard.ts
+@@ -82,6 +82,71 @@ export interface RegulationNewsConfig {
+   exclude_keywords?: string[];
+ }
+ 
++export type RegulationTrackingType =
++  | "framework_regulation"
++  | "directive_transposition"
++  | "reporting_disclosure"
++  | "trade_border"
++  | "delegated_acts_required"
++  | "standards_required"
++  | "phased_application"
++  | "revision_or_simplification";
++
++export type RegulationStageStatus =
++  | "not_started"
++  | "in_progress"
++  | "done"
++  | "delayed"
++  | "uncertain";
++
++export type RegulationDatePrecision =
++  | "day"
++  | "month"
++  | "quarter"
++  | "half_year"
++  | "year"
++  | "unknown";
++
++export type RegulationNextEventStatus =
++  | "scheduled"
++  | "expected"
++  | "uncertain"
++  | "delayed"
++  | "completed";
++
++export type RegulationScheduleRiskLevel = "low" | "medium" | "high" | "unknown";
++
++export interface RegulationTracking {
++  regulation_types?: RegulationTrackingType[];
++  lifecycle_status?: string;
++  current_stage?: {
++    stage_id?: string;
++    stage_label?: string;
++    stage_owner?: string;
++    stage_status?: RegulationStageStatus;
++    confidence?: string;
++  };
++  next_event?: {
++    event_label?: string;
++    event_type?: string;
++    expected_date?: string;
++    date_precision?: RegulationDatePrecision;
++    owner?: string;
++    status?: RegulationNextEventStatus;
++  };
++  business_action?: {
++    now?: string;
++    next_90_days?: string;
++    before_next_event?: string;
++  };
++  schedule_risk?: {
++    level?: RegulationScheduleRiskLevel;
++    drivers?: string[];
++    user_message?: string;
++  };
++  last_verified_at?: string;
++}
++
+ export interface Regulation {
+   id: string;
+   code: string;
+@@ -106,6 +171,7 @@ export interface Regulation {
+   history?: RegulationHistory[];
+   display?: RegulationDisplay;
+   action_checkpoints?: RegulationActionCheckpoints;
++  tracking?: RegulationTracking;
+   korean_company_note?: string;
+   company_mapping?: RegulationCompanyMapping;
+   why_it_matters?: string;
+@@ -145,6 +211,7 @@ export interface RegulationDetail extends Regulation {
+   news_config: RegulationNewsConfig;
+   display: RegulationDisplay;
+   action_checkpoints: RegulationActionCheckpoints;
++  tracking: RegulationTracking;
+   company_mapping: RegulationCompanyMapping;
+ }
+ 
+diff --git a/frontend/lib/tracking.ts b/frontend/lib/tracking.ts
+new file mode 100644
+index 0000000..c5c538f
+--- /dev/null
++++ b/frontend/lib/tracking.ts
+@@ -0,0 +1,126 @@
++import type {
++  Regulation,
++  RegulationDatePrecision,
++  RegulationNextEventStatus,
++  RegulationScheduleRiskLevel,
++  RegulationTracking,
++} from "@/types/dashboard";
++
++const ISO_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
++
++export function isScheduledDayEvent(tracking?: RegulationTracking) {
++  const event = tracking?.next_event;
++  return (
++    event?.status === "scheduled" &&
++    event.date_precision === "day" &&
++    Boolean(event.expected_date?.match(ISO_DAY_PATTERN))
++  );
++}
++
++export function calculateTrackingDDay(
++  tracking?: RegulationTracking,
++  today = new Date()
++) {
++  if (!isScheduledDayEvent(tracking)) return null;
++
++  const eventDate = new Date(`${tracking?.next_event?.expected_date}T00:00:00`);
++  if (Number.isNaN(eventDate.getTime())) return null;
++
++  const todayDate = new Date(today);
++  todayDate.setHours(0, 0, 0, 0);
++  return Math.ceil(
++    (eventDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24)
++  );
++}
++
++function formatDay(value: string) {
++  return value.replaceAll("-", ".");
++}
++
++function formatExpectedDate(
++  value?: string,
++  precision?: RegulationDatePrecision,
++  status?: RegulationNextEventStatus
++) {
++  if (status === "delayed") return value ? `${value} 지연 가능` : "지연 가능";
++  if (status === "uncertain") return value ? `${value} 불확실` : "시점 미정";
++  if (!value) return "시점 미정";
++
++  if (precision === "day") {
++    return status === "scheduled" ? formatDay(value) : `${formatDay(value)} 예상`;
++  }
++  if (precision === "month") {
++    const [year, month] = value.split("-");
++    return year && month ? `${year}년 ${Number(month)}월 예상` : `${value} 예상`;
++  }
++  if (precision === "quarter") return `${value} 예상`;
++  if (precision === "half_year") return `${value} 예상`;
++  if (precision === "year") return `${value}년 예상`;
++  return value || "시점 미정";
++}
++
++export function formatTrackingEventTiming(tracking?: RegulationTracking) {
++  const event = tracking?.next_event;
++  if (!event) return "시점 미정";
++
++  const dDay = calculateTrackingDDay(tracking);
++  if (dDay !== null) {
++    if (dDay < 0) return "일정 도래";
++    if (dDay === 0) return "D-Day";
++    return `D-${dDay}`;
++  }
++
++  return formatExpectedDate(
++    event.expected_date,
++    event.date_precision,
++    event.status
++  );
++}
++
++export function formatTrackingDateLabel(tracking?: RegulationTracking) {
++  const event = tracking?.next_event;
++  if (!event) return "시점 미정";
++  return formatExpectedDate(
++    event.expected_date,
++    event.date_precision,
++    event.status
++  );
++}
++
++export function getTrackingOwner(tracking?: RegulationTracking) {
++  return (
++    tracking?.current_stage?.stage_owner ||
++    tracking?.next_event?.owner ||
++    "담당 주체 확인 필요"
++  );
++}
++
++export function getTrackingRiskLabel(level?: RegulationScheduleRiskLevel) {
++  const labels: Record<RegulationScheduleRiskLevel, string> = {
++    low: "낮음",
++    medium: "중간",
++    high: "높음",
++    unknown: "미정",
++  };
++  return labels[level ?? "unknown"];
++}
++
++export function getTrackingRiskClass(level?: RegulationScheduleRiskLevel) {
++  if (level === "high") return "border-red-100 bg-red-50 text-red-700";
++  if (level === "medium") return "border-amber-100 bg-amber-50 text-amber-800";
++  if (level === "low") return "border-emerald-100 bg-emerald-50 text-emerald-700";
++  return "border-slate-100 bg-slate-50 text-slate-600";
++}
++
++export function getTrackingEventSortValue(regulation: Regulation) {
++  const dDay = calculateTrackingDDay(regulation.tracking);
++  if (dDay !== null) return dDay;
++  return Number.POSITIVE_INFINITY;
++}
++
++export function hasTracking(regulation: Regulation) {
++  return Boolean(
++    regulation.tracking?.current_stage?.stage_label ||
++      regulation.tracking?.next_event?.event_label
++  );
++}

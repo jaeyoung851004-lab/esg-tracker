@@ -124,11 +124,17 @@
           "sustainable products regulation ecodesign textiles"
         ],
         "required_keywords": [
+          "ESPR",
           "ecodesign",
+          "ecodesign regulation",
           "sustainable products",
           "ESPR regulation",
           "delegated act",
-          "working plan"
+          "working plan",
+          "unsold goods",
+          "textile ecodesign",
+          "repairability",
+          "product sustainability requirements"
         ],
         "positive_keywords": [
           "ESPR",
@@ -153,6 +159,8 @@
           "circular design",
           "ecodesign of fans",
           "fans ecodesign",
+          "repairability",
+          "right to repair",
           "repair agenda"
         ],
         "industry_terms": [
@@ -180,7 +188,26 @@
           "Lexology",
           "ESG Today"
         ],
-        "min_score": 0,
+        "overlap_keywords": [
+          "digital product passport",
+          "DPP",
+          "product passport",
+          "battery passport",
+          "digital battery passport"
+        ],
+        "context_keywords": [
+          "ESPR",
+          "ecodesign",
+          "Ecodesign for Sustainable Products Regulation",
+          "working plan",
+          "delegated act",
+          "unsold goods",
+          "unsold consumer products",
+          "textile ecodesign",
+          "repairability",
+          "product sustainability requirements"
+        ],
+        "min_score": 5,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -208,6 +235,44 @@
           "Africa DPP Registry",
           "webinar"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "framework_regulation",
+          "delegated_acts_required",
+          "standards_required",
+          "phased_application"
+        ],
+        "lifecycle_status": "phased_application",
+        "current_stage": {
+          "stage_id": "secondary_legislation",
+          "stage_label": "품목별 세부규칙 준비 단계",
+          "stage_owner": "European Commission",
+          "stage_status": "in_progress",
+          "confidence": "medium"
+        },
+        "next_event": {
+          "event_label": "우선 품목군별 위임입법 공개",
+          "event_type": "delegated_act",
+          "expected_date": "2026",
+          "date_precision": "year",
+          "owner": "European Commission",
+          "status": "expected"
+        },
+        "business_action": {
+          "now": "대상 품목 여부와 제품 데이터 보유 수준 점검",
+          "next_90_days": "DPP·에코디자인 데이터 갭 분석",
+          "before_next_event": "위임입법 초안 공개 시 영향 품목 매핑"
+        },
+        "schedule_risk": {
+          "level": "medium",
+          "drivers": [
+            "위임입법 일정 변동",
+            "표준화 지연"
+          ],
+          "user_message": "법은 시행 중이나 기업별 실질 의무는 품목별 세부규칙에 따라 달라질 수 있음"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -447,7 +512,7 @@
           "Euractiv",
           "Recycling Today"
         ],
-        "min_score": 0,
+        "min_score": 6,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -463,6 +528,43 @@
           "product launch",
           "openPR"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "framework_regulation",
+          "delegated_acts_required",
+          "phased_application"
+        ],
+        "lifecycle_status": "phased_application",
+        "current_stage": {
+          "stage_id": "transition_period",
+          "stage_label": "기업 준비기간",
+          "stage_owner": "European Commission / Member States",
+          "stage_status": "in_progress",
+          "confidence": "high"
+        },
+        "next_event": {
+          "event_label": "주요 포장 의무 적용 시작",
+          "event_type": "application",
+          "expected_date": "2026-08-12",
+          "date_precision": "day",
+          "owner": "Economic operators / Member States",
+          "status": "scheduled"
+        },
+        "business_action": {
+          "now": "EU 수출 제품의 포장재 현황과 재생원료 함량 점검",
+          "next_90_days": "2026년 적용 시작 전 포장재 전환 로드맵 수립",
+          "before_next_event": "제품군별 포장 설계·재활용성·표시 요건 갭 분석 완료"
+        },
+        "schedule_risk": {
+          "level": "low",
+          "drivers": [
+            "포장 유형별 세부 기준 업데이트",
+            "회원국 집행 준비 차이"
+          ],
+          "user_message": "주요 적용일은 확정되어 있으나 포장 유형별 세부 이행 기준은 계속 확인 필요"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -713,7 +815,7 @@
           "JD Supra",
           "Latham"
         ],
-        "min_score": 0,
+        "min_score": 4,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -729,6 +831,44 @@
           "funding opportunity",
           "training course"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "directive_transposition",
+          "phased_application",
+          "revision_or_simplification"
+        ],
+        "lifecycle_status": "scaled_back_and_delayed",
+        "current_stage": {
+          "stage_id": "national_transposition",
+          "stage_label": "회원국 전환입법 및 가이드라인 준비 단계",
+          "stage_owner": "Member States / European Commission",
+          "stage_status": "in_progress",
+          "confidence": "medium"
+        },
+        "next_event": {
+          "event_label": "EU 집행위 실사 가이드라인 발행",
+          "event_type": "guidance",
+          "expected_date": "2027-07",
+          "date_precision": "month",
+          "owner": "European Commission",
+          "status": "expected"
+        },
+        "business_action": {
+          "now": "EU 매출과 1차 공급망 지위를 기준으로 직접·간접 적용 가능성 점검",
+          "next_90_days": "대형 EU 고객사의 실사 요청에 대응할 기본 자료와 책임 체계 정비",
+          "before_next_event": "가이드라인 공개 시 공급망 실사 절차와 계약 조항 재점검"
+        },
+        "schedule_risk": {
+          "level": "high",
+          "drivers": [
+            "회원국별 전환입법 차이",
+            "Omnibus 이후 세부 해석 변화",
+            "가이드라인 범위 불확실성"
+          ],
+          "user_message": "최종 적용 시점은 늦춰졌지만 회원국 이행과 가이드라인에 따라 기업 준비 범위가 달라질 수 있음"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -1010,7 +1150,7 @@
           "Lexology",
           "JD Supra"
         ],
-        "min_score": 0,
+        "min_score": 4,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -1020,6 +1160,45 @@
           "pharmaceutical",
           "drug"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "reporting_disclosure",
+          "directive_transposition",
+          "standards_required",
+          "revision_or_simplification"
+        ],
+        "lifecycle_status": "scaled_back_and_delayed",
+        "current_stage": {
+          "stage_id": "revision_simplification",
+          "stage_label": "Omnibus 개정 및 ESRS 간소화 단계",
+          "stage_owner": "European Commission / EFRAG",
+          "stage_status": "in_progress",
+          "confidence": "medium"
+        },
+        "next_event": {
+          "event_label": "간소화 ESRS 위임입법 채택",
+          "event_type": "standards_update",
+          "expected_date": "2026-09",
+          "date_precision": "month",
+          "owner": "European Commission",
+          "status": "expected"
+        },
+        "business_action": {
+          "now": "EU 법인·자회사 기준으로 Wave 1/Wave 2 대상 여부 재판정",
+          "next_90_days": "Scope 1·2·3 및 공급망 데이터 수집 체계 유지",
+          "before_next_event": "간소화 ESRS 확정 후 보고 항목과 데이터 갭 재평가"
+        },
+        "schedule_risk": {
+          "level": "high",
+          "drivers": [
+            "Omnibus 입법 변화",
+            "ESRS 간소화 범위",
+            "회원국 이행 차이"
+          ],
+          "user_message": "보고 의무의 방향은 유지되지만 대상 기업과 보고 범위는 변동 가능성이 큼"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -1315,7 +1494,7 @@
           "Argus",
           "Eurometal"
         ],
-        "min_score": 0,
+        "min_score": 4,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -1325,6 +1504,42 @@
           "pharmaceutical",
           "drug"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "trade_border",
+          "phased_application"
+        ],
+        "lifecycle_status": "financial_phase_preparation",
+        "current_stage": {
+          "stage_id": "phased_application",
+          "stage_label": "본격 단계 진입 및 인증서 구매 준비 단계",
+          "stage_owner": "European Commission / National Competent Authorities",
+          "stage_status": "in_progress",
+          "confidence": "high"
+        },
+        "next_event": {
+          "event_label": "CBAM 인증서 판매 시작",
+          "event_type": "financial_obligation",
+          "expected_date": "2027-02-01",
+          "date_precision": "day",
+          "owner": "European Commission / National Competent Authorities",
+          "status": "scheduled"
+        },
+        "business_action": {
+          "now": "EU 수출 품목의 CBAM 대상 여부와 연간 수량 확인",
+          "next_90_days": "제품별 embedded emissions 산정 체계와 수입자 제출 방식 점검",
+          "before_next_event": "인증서 구매와 2027년 첫 연간 신고에 필요한 배출량 데이터 책임 범위 합의"
+        },
+        "schedule_risk": {
+          "level": "low",
+          "drivers": [
+            "방법론 세부지침 업데이트",
+            "품목 범위 확대 논의"
+          ],
+          "user_message": "핵심 일정은 비교적 명확하나 세부 방법론과 확대 범위는 계속 모니터링 필요"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -1577,7 +1792,7 @@
           "Forest Trends",
           "ClientEarth"
         ],
-        "min_score": 0,
+        "min_score": 4,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -1587,6 +1802,44 @@
           "pharmaceutical",
           "drug"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "framework_regulation",
+          "phased_application",
+          "revision_or_simplification"
+        ],
+        "lifecycle_status": "delayed_application",
+        "current_stage": {
+          "stage_id": "revision_simplification",
+          "stage_label": "간소화 검토 및 적용 유예 단계",
+          "stage_owner": "European Commission",
+          "stage_status": "delayed",
+          "confidence": "medium"
+        },
+        "next_event": {
+          "event_label": "대기업·중기업 EUDR 의무 적용",
+          "event_type": "application",
+          "expected_date": "2026-12-30",
+          "date_precision": "day",
+          "owner": "Operators / Competent Authorities",
+          "status": "scheduled"
+        },
+        "business_action": {
+          "now": "EUDR 대상 원자재 포함 제품과 공급업체 원산지 데이터를 점검",
+          "next_90_days": "DDS 제출에 필요한 지리좌표·추적성 데이터 확보 수준 확인",
+          "before_next_event": "대기업 적용 전 공급업체 증빙과 위험평가 프로세스 정비"
+        },
+        "schedule_risk": {
+          "level": "high",
+          "drivers": [
+            "추가 간소화 검토",
+            "적용 일정 재조정 가능성",
+            "공급국·회원국 집행 준비 차이"
+          ],
+          "user_message": "적용일은 법적 근거가 있으나 추가 간소화 논의로 실무 요구사항이 변동될 수 있음"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -1847,7 +2100,7 @@
           "Latham",
           "Lexology"
         ],
-        "min_score": 0,
+        "min_score": 4,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -1873,6 +2126,43 @@
           "market forecast",
           "top 5 companies"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "directive_transposition",
+          "revision_or_simplification"
+        ],
+        "lifecycle_status": "uncertain",
+        "current_stage": {
+          "stage_id": "revision_simplification",
+          "stage_label": "입법 철회·대체입법 여부 불확실 단계",
+          "stage_owner": "European Commission",
+          "stage_status": "uncertain",
+          "confidence": "medium"
+        },
+        "next_event": {
+          "event_label": "공식 철회 또는 대체 입법 방향 확인",
+          "event_type": "policy_decision",
+          "expected_date": "",
+          "date_precision": "unknown",
+          "owner": "European Commission",
+          "status": "uncertain"
+        },
+        "business_action": {
+          "now": "EU 마케팅의 친환경·탄소중립·지속가능 표현과 실증 근거를 목록화",
+          "next_90_days": "회원국별 그린워싱 규제와 소비자보호 집행 동향 확인",
+          "before_next_event": "대체 입법 또는 철회 확정 시 클레임 검증 체계 재조정"
+        },
+        "schedule_risk": {
+          "level": "high",
+          "drivers": [
+            "공식 철회 절차 미완료",
+            "대체 입법 가능성",
+            "회원국별 개별 규제 강화"
+          ],
+          "user_message": "EU 차원의 일정은 불확실하지만 그린워싱 표현에 대한 실증 요구는 회원국과 소비자보호 규제로 계속 관리 필요"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -2122,7 +2412,7 @@
           "Lexology",
           "IAPP"
         ],
-        "min_score": 0,
+        "min_score": 4,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -2145,6 +2435,44 @@
           "pharmaceutical",
           "drug"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "framework_regulation",
+          "standards_required",
+          "phased_application"
+        ],
+        "lifecycle_status": "phased_application",
+        "current_stage": {
+          "stage_id": "standards_guidance",
+          "stage_label": "단계별 의무 적용 및 고위험 AI 세부기준 준비 단계",
+          "stage_owner": "European Commission / EU AI Office",
+          "stage_status": "in_progress",
+          "confidence": "medium"
+        },
+        "next_event": {
+          "event_label": "고위험 AI 의무 적용 예정",
+          "event_type": "application",
+          "expected_date": "2026-08-02",
+          "date_precision": "day",
+          "owner": "European Commission / EU AI Office",
+          "status": "expected"
+        },
+        "business_action": {
+          "now": "사용 중인 AI 시스템을 목록화하고 금지 AI·고위험 AI 해당 여부를 1차 분류",
+          "next_90_days": "GPAI와 고위험 AI 관련 공급업체 문서·거버넌스 체계 점검",
+          "before_next_event": "고위험 AI 일정 조정 여부 확정 시 내부 통제와 적합성 평가 준비 수준 재점검"
+        },
+        "schedule_risk": {
+          "level": "medium",
+          "drivers": [
+            "고위험 AI 일정 조정 논의",
+            "표준·가이드라인 확정 지연",
+            "AI 시스템 분류 해석 차이"
+          ],
+          "user_message": "법정 단계 일정은 제시되어 있으나 고위험 AI 일부 일정 조정 논의가 있어 확정 D-day로 보지 않는 것이 안전함"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -2420,28 +2748,38 @@
         "search_queries": [
           "EU Battery Regulation digital battery passport 2027",
           "EU Battery Regulation recycled content carbon footprint compliance",
-          "Digital Battery Passport battery data interoperability",
-          "battery passport carbon footprint data supply chain",
+          "EU Digital Battery Passport battery data interoperability",
+          "EU battery passport carbon footprint recycled content",
           "Catena-X battery passport data space",
-          "EU China battery traceability standards"
+          "EU Battery Regulation China battery traceability standards"
         ],
         "required_keywords": [
+          "EU Battery Regulation",
           "battery regulation",
           "EU battery",
           "digital battery passport",
+          "battery passport",
           "DBP",
           "battery EU 2023/1542",
-          "battery carbon footprint"
+          "Regulation (EU) 2023/1542",
+          "EU 2023/1542",
+          "battery carbon footprint",
+          "battery due diligence",
+          "battery recycled content"
         ],
         "positive_keywords": [
-          "Battery Regulation",
+          "EU Battery Regulation",
+          "Regulation (EU) 2023/1542",
+          "EU 2023/1542",
           "digital battery passport",
           "Battery Passport",
           "battery carbon footprint",
-          "battery data",
-          "battery lifecycle tracking",
-          "battery data space",
-          "supply chain traceability"
+          "battery carbon footprint declaration",
+          "battery due diligence",
+          "battery recycled content",
+          "recycled content for batteries",
+          "battery supply chain due diligence",
+          "battery traceability regulation"
         ],
         "industry_terms": [
           "Catena-X",
@@ -2455,9 +2793,22 @@
           "EV batteries"
         ],
         "negative_keywords": [
+          "battery data",
+          "EV batteries",
+          "battery analytics",
+          "battery show",
+          "battery funding",
+          "battery market",
+          "battery platform",
+          "battery startup",
+          "battery conference",
+          "EV battery market",
+          "battery market report",
+          "battery market size",
           "battery price",
           "battery materials price",
           "lithium price",
+          "lithium market",
           "market analysis",
           "stock",
           "earnings",
@@ -2468,11 +2819,9 @@
           "Battery Pass",
           "Catena-X",
           "Reuters",
-          "Benchmark",
-          "Battery News",
           "ESG Today"
         ],
-        "min_score": 0,
+        "min_score": 7,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -2482,8 +2831,56 @@
           "drug",
           "pharmaceutical",
           "battery stock",
-          "EV stock price"
+          "EV stock price",
+          "battery analytics platform",
+          "battery show",
+          "battery conference",
+          "battery funding",
+          "battery startup funding",
+          "EV battery market",
+          "battery market report",
+          "battery market size",
+          "battery market forecast"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "framework_regulation",
+          "delegated_acts_required",
+          "standards_required",
+          "phased_application"
+        ],
+        "lifecycle_status": "phased_application",
+        "current_stage": {
+          "stage_id": "standards_guidance",
+          "stage_label": "탄소발자국·DBP 세부기준 준비 단계",
+          "stage_owner": "European Commission",
+          "stage_status": "in_progress",
+          "confidence": "high"
+        },
+        "next_event": {
+          "event_label": "디지털 배터리 여권(DBP) 의무 시작",
+          "event_type": "application",
+          "expected_date": "2027-02-18",
+          "date_precision": "day",
+          "owner": "Economic operators / European Commission",
+          "status": "scheduled"
+        },
+        "business_action": {
+          "now": "EU 납품·수출 배터리 유형과 의무 적용 일정을 분류",
+          "next_90_days": "탄소발자국·원산지·재활용 함량·실사 데이터 보유 수준 점검",
+          "before_next_event": "DBP 등록소와 데이터 교환 요건 확정 시 시스템 연계 방안 수립"
+        },
+        "schedule_risk": {
+          "level": "medium",
+          "drivers": [
+            "탄소발자국 계산 방법 위임입법",
+            "재활용 함량 세부 기준",
+            "DBP 등록소 운영 규칙"
+          ],
+          "user_message": "DBP 의무 시작일은 확정되어 있으나 데이터 항목과 운영 방식은 후속 기준을 계속 확인해야 함"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -2749,7 +3146,7 @@
           "Reuters",
           "Lexology"
         ],
-        "min_score": 0,
+        "min_score": 5,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -2772,6 +3169,45 @@
           "DPP-4",
           "DPP IV"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "framework_regulation",
+          "delegated_acts_required",
+          "standards_required",
+          "phased_application"
+        ],
+        "lifecycle_status": "phased_application",
+        "current_stage": {
+          "stage_id": "secondary_legislation",
+          "stage_label": "품목별 DPP 세부규칙 및 등록소 준비 단계",
+          "stage_owner": "European Commission",
+          "stage_status": "in_progress",
+          "confidence": "medium"
+        },
+        "next_event": {
+          "event_label": "배터리 DBP 선행 적용",
+          "event_type": "application",
+          "expected_date": "2027-02-18",
+          "date_precision": "day",
+          "owner": "Economic operators / European Commission",
+          "status": "scheduled"
+        },
+        "business_action": {
+          "now": "ESPR 우선 품목과 배터리 탑재 제품의 DPP 적용 가능성을 구분",
+          "next_90_days": "제품 식별자, 공급망 데이터, 배터리 데이터 연계 수준 점검",
+          "before_next_event": "배터리 DBP 요건을 우선 반영하고 ESPR 품목별 위임입법 공개 시 확대 적용"
+        },
+        "schedule_risk": {
+          "level": "medium",
+          "drivers": [
+            "ESPR 품목별 위임입법 일정",
+            "DPP 등록소 운영 규칙",
+            "데이터 표준 상호운용성"
+          ],
+          "user_message": "배터리 DBP는 선행 일정이 명확하지만 일반 제품 DPP는 품목별 세부규칙에 따라 실제 적용 시점이 달라짐"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {
@@ -2937,7 +3373,7 @@
           "Waste Today",
           "European Commission"
         ],
-        "min_score": 0,
+        "min_score": 6,
         "max_items": 30,
         "exclude_keywords": [
           "stock",
@@ -2959,6 +3395,43 @@
           "container deposit",
           "plastic packaging market"
         ]
+      },
+      "tracking": {
+        "regulation_types": [
+          "framework_regulation",
+          "delegated_acts_required"
+        ],
+        "lifecycle_status": "legislative_negotiation",
+        "current_stage": {
+          "stage_id": "trilogue",
+          "stage_label": "트라일로그 진행 단계",
+          "stage_owner": "European Parliament / Council / European Commission",
+          "stage_status": "in_progress",
+          "confidence": "medium"
+        },
+        "next_event": {
+          "event_label": "정치적 합의 또는 최종 채택 방향 확인",
+          "event_type": "political_agreement",
+          "expected_date": "2026",
+          "date_precision": "year",
+          "owner": "European Parliament / Council / European Commission",
+          "status": "expected"
+        },
+        "business_action": {
+          "now": "완성차·부품·플라스틱 공급망에서 재생원료 사용 가능성과 데이터 추적 수준 점검",
+          "next_90_days": "자동차용 재생 플라스틱 조달·품질 기준과 공급처 후보 검토",
+          "before_next_event": "최종 합의안 공개 시 재생 함량 목표와 적용 대상 부품을 매핑"
+        },
+        "schedule_risk": {
+          "level": "medium",
+          "drivers": [
+            "Trilogue 합의 지연",
+            "재생 플라스틱 함량 목표 조정",
+            "적용 시점 미확정"
+          ],
+          "user_message": "아직 최종 채택 전이므로 기업 의무 적용 시점과 세부 목표는 정치적 합의 결과에 따라 달라질 수 있음"
+        },
+        "last_verified_at": "2026-06-05"
       },
       "history": [
         {

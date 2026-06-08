@@ -18,6 +18,9 @@ MAX_RSS_ENTRIES_PER_QUERY = 50
 DEFAULT_PER_REGULATION_LIMIT = 30
 DEFAULT_ALL_NEWS_LIMIT = 150
 MAX_ALL_NEWS_LIMIT = 150
+DEFAULT_MIN_RELEVANCE_SCORE = 4
+HIGH_RELEVANCE_SIGNAL_BYPASS_SCORE = 30
+ALL_NEWS_MIN_ITEMS_PER_REGULATION = 5
 RSS_REQUEST_TIMEOUT_SECONDS = 8
 MAX_RSS_QUERY_WORKERS = 8
 NEWS_CACHE_TTL_SECONDS = 20 * 60
@@ -301,6 +304,21 @@ LOW_QUALITY_KEYWORDS = [
     "conference agenda", "live update", "generic market report",
 ]
 
+LOW_QUALITY_EXCLUDE_KEYWORDS = [
+    "openpr",
+    "press release",
+    "sponsored",
+    "market report",
+    "research report",
+    "market forecast",
+    "market size",
+    "market to reach",
+    "market by 2030",
+    "market by 2035",
+    "cagr",
+    "top 5 companies",
+]
+
 SOURCE_IMPORTANCE = {
     "공식기관": 35,
     "로펌": 24,
@@ -395,15 +413,23 @@ def _get_negative_keywords(regulation: dict[str, Any]) -> list[str]:
     return _get_config_list(regulation, "negative_keywords")
 
 
+def _get_overlap_keywords(regulation: dict[str, Any]) -> list[str]:
+    return _get_config_list(regulation, "overlap_keywords")
+
+
+def _get_context_keywords(regulation: dict[str, Any]) -> list[str]:
+    return _get_config_list(regulation, "context_keywords")
+
+
 def _get_trusted_sources(regulation: dict[str, Any]) -> list[str]:
     return _get_config_list(regulation, "trusted_sources")
 
 
 def _get_min_score(regulation: dict[str, Any]) -> int:
     try:
-        return int(_get_news_config(regulation).get("min_score", 0))
+        return int(_get_news_config(regulation).get("min_score", DEFAULT_MIN_RELEVANCE_SCORE))
     except (TypeError, ValueError):
-        return 0
+        return DEFAULT_MIN_RELEVANCE_SCORE
 
 
 def _get_max_items(regulation: dict[str, Any]) -> int:
@@ -449,6 +475,27 @@ def raw_article_key(article: RawArticle) -> str:
     return f"title:{normalize_title_key(article.get('title', ''))}"
 
 
+def news_item_key(item: NewsArticle) -> str:
+    url_key = normalize_article_url_key(item.get("url", ""))
+    if url_key:
+        return f"url:{url_key}"
+    return f"title:{normalize_title_key(item.get('title', ''))}"
+
+
+def regulation_filter_cache_signature(regulation: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        _get_min_score(regulation),
+        tuple(keyword.lower() for keyword in _get_required_keywords(regulation)),
+        tuple(keyword.lower() for keyword in _get_positive_keywords(regulation)),
+        tuple(keyword.lower() for keyword in _get_industry_terms(regulation)),
+        tuple(keyword.lower() for keyword in _get_negative_keywords(regulation)),
+        tuple(keyword.lower() for keyword in _get_exclude_keywords(regulation)),
+        tuple(keyword.lower() for keyword in _get_trusted_sources(regulation)),
+        tuple(keyword.lower() for keyword in _get_overlap_keywords(regulation)),
+        tuple(keyword.lower() for keyword in _get_context_keywords(regulation)),
+    )
+
+
 def regulation_cache_key(
     regulation: dict[str, Any],
     lookback_days: int,
@@ -457,6 +504,7 @@ def regulation_cache_key(
         "regulation-items",
         regulation.get("id", ""),
         tuple(query.lower() for query in _get_search_queries(regulation)),
+        regulation_filter_cache_signature(regulation),
         lookback_days,
     )
 
@@ -472,6 +520,7 @@ def all_news_cache_key(
             (
                 regulation.get("id", ""),
                 tuple(query.lower() for query in _get_search_queries(regulation)),
+                regulation_filter_cache_signature(regulation),
                 _get_max_items(regulation),
             )
             for regulation in regulations
@@ -919,28 +968,87 @@ def build_news_item(
     }
 
 
+def article_matches_trusted_source(
+    article: RawArticle,
+    regulation: dict[str, Any],
+) -> bool:
+    source_text = " ".join(
+        value
+        for value in [
+            article.get("source", ""),
+            article.get("sourceUrl", ""),
+            article.get("url", ""),
+        ]
+        if value
+    ).lower()
+    return bool(
+        source_text
+        and any(keyword.lower() in source_text for keyword in _get_trusted_sources(regulation))
+    )
+
+
+def has_required_or_positive_signal(
+    text: str,
+    regulation: dict[str, Any],
+) -> bool:
+    signal_keywords = dedupe_preserve_order(
+        [*_get_required_keywords(regulation), *_get_positive_keywords(regulation)]
+    )
+    return bool(keyword_matches(text, signal_keywords))
+
+
+def has_required_context_for_overlap(
+    text: str,
+    regulation: dict[str, Any],
+) -> bool:
+    overlap_keywords = _get_overlap_keywords(regulation)
+    context_keywords = _get_context_keywords(regulation)
+    if not overlap_keywords or not context_keywords:
+        return True
+    if not keyword_matches(text, overlap_keywords):
+        return True
+    return bool(keyword_matches(text, context_keywords))
+
+
+def get_article_exclusion_reason(
+    article: RawArticle,
+    regulation: dict[str, Any],
+    relevance_score: int | None = None,
+) -> str | None:
+    text = f"{article['title']} {article['summary']} {article['source']}".lower()
+    if keyword_matches(
+        text,
+        [*_get_exclude_keywords(regulation), *LOW_QUALITY_EXCLUDE_KEYWORDS],
+    ):
+        return "excluded_by_keyword"
+
+    if relevance_score is None:
+        return None
+
+    has_signal = has_required_or_positive_signal(text, regulation)
+    can_bypass_signal_gate = (
+        article_matches_trusted_source(article, regulation)
+        or relevance_score >= HIGH_RELEVANCE_SIGNAL_BYPASS_SCORE
+    )
+
+    if not has_required_context_for_overlap(text, regulation):
+        return "no_required_signal"
+
+    if not has_signal and not can_bypass_signal_gate:
+        return "no_required_signal"
+
+    if relevance_score < _get_min_score(regulation):
+        return "below_min_score"
+
+    return None
+
+
 def is_obvious_false_positive(
     article: RawArticle,
     regulation: dict[str, Any],
     relevance_score: int | None = None,
 ) -> bool:
-    text = f"{article['title']} {article['summary']} {article['source']}".lower()
-    if keyword_matches(text, _get_exclude_keywords(regulation)):
-        return True
-
-    if relevance_score is None:
-        return False
-
-    has_positive_signal = bool(
-        keyword_matches(text, _get_positive_keywords(regulation))
-        or keyword_matches(text, _get_industry_terms(regulation))
-    )
-    has_negative_signal = bool(keyword_matches(text, _get_negative_keywords(regulation)))
-
-    if relevance_score <= _get_min_score(regulation) and has_negative_signal and not has_positive_signal:
-        return True
-
-    return False
+    return get_article_exclusion_reason(article, regulation, relevance_score) is not None
 
 
 def merge_duplicate_item(existing: NewsArticle, item: NewsArticle) -> NewsArticle:
@@ -1005,6 +1113,96 @@ def dedupe_and_merge(items: list[NewsArticle]) -> list[NewsArticle]:
     return deduped
 
 
+def build_balanced_all_news_items(
+    items_by_regulation: dict[str, list[NewsArticle]],
+    regulations: list[dict[str, Any]],
+    limit: int,
+) -> list[NewsArticle]:
+    if not items_by_regulation or limit <= 0:
+        return []
+
+    selected_by_key: dict[str, NewsArticle] = {}
+
+    def add_item(item: NewsArticle) -> None:
+        key = news_item_key(item)
+        existing = selected_by_key.get(key)
+        if existing:
+            merge_duplicate_item(existing, item)
+            return
+        selected_by_key[key] = copy.deepcopy(item)
+
+    if limit >= len(regulations):
+        guaranteed_count = min(
+            ALL_NEWS_MIN_ITEMS_PER_REGULATION,
+            max(limit // max(len(regulations), 1), 0),
+        )
+    else:
+        guaranteed_count = 0
+
+    for regulation in regulations:
+        if len(selected_by_key) >= limit:
+            break
+        for item in items_by_regulation.get(regulation["id"], [])[:guaranteed_count]:
+            if len(selected_by_key) >= limit:
+                break
+            add_item(item)
+
+    remaining_pool = [
+        item
+        for regulation in regulations
+        for item in items_by_regulation.get(regulation["id"], [])
+    ]
+    for item in dedupe_and_merge(remaining_pool):
+        if len(selected_by_key) >= limit:
+            break
+        add_item(item)
+
+    selected_items = list(selected_by_key.values())
+    selected_items.sort(
+        key=lambda item: (
+            item["relevanceScore"],
+            item["importanceScore"],
+            item["publishedAt"],
+        ),
+        reverse=True,
+    )
+    return selected_items[:limit]
+
+
+def new_quality_stats(regulation: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "regulationId": regulation.get("id", ""),
+        "rawCount": 0,
+        "uniqueCount": 0,
+        "filterPassCount": 0,
+        "returnedCount": 0,
+        "minScore": _get_min_score(regulation),
+        "excluded": {
+            "excluded_by_keyword": 0,
+            "below_min_score": 0,
+            "no_required_signal": 0,
+            "duplicate": 0,
+        },
+    }
+
+
+def log_news_quality_stats(stats: dict[str, Any]) -> None:
+    excluded = stats["excluded"]
+    print(
+        "news_quality "
+        f"regulation={stats['regulationId']} "
+        f"raw={stats['rawCount']} "
+        f"unique={stats['uniqueCount']} "
+        f"filter_pass={stats['filterPassCount']} "
+        f"returned={stats['returnedCount']} "
+        f"min_score={stats['minScore']} "
+        f"excluded_by_keyword={excluded['excluded_by_keyword']} "
+        f"below_min_score={excluded['below_min_score']} "
+        f"no_required_signal={excluded['no_required_signal']} "
+        f"duplicate={excluded['duplicate']}"
+    )
+
+
 def build_regulation_news_items_from_articles(
     regulation: dict[str, Any],
     articles_by_query: dict[str, list[RawArticle]],
@@ -1016,20 +1214,35 @@ def build_regulation_news_items_from_articles(
     )
     collected: list[NewsArticle] = []
     seen_raw_article_keys: set[str] = set()
+    stats = new_quality_stats(regulation)
 
     for query in _get_search_queries(regulation):
         for article in articles_by_query.get(query, []):
+            stats["rawCount"] += 1
             article_key = raw_article_key(article)
             if article_key in seen_raw_article_keys:
+                stats["excluded"]["duplicate"] += 1
                 continue
             seen_raw_article_keys.add(article_key)
+            stats["uniqueCount"] += 1
 
             item = build_news_item(article, regulation)
-            if is_obvious_false_positive(article, regulation, item["relevanceScore"]):
+            exclusion_reason = get_article_exclusion_reason(
+                article,
+                regulation,
+                item["relevanceScore"],
+            )
+            if exclusion_reason:
+                stats["excluded"][exclusion_reason] += 1
                 continue
             collected.append(item)
 
-    return dedupe_and_merge(collected)[:item_limit]
+    deduped = dedupe_and_merge(collected)
+    stats["filterPassCount"] = len(collected)
+    stats["excluded"]["duplicate"] += max(len(collected) - len(deduped), 0)
+    stats["returnedCount"] = min(len(deduped), item_limit)
+    log_news_quality_stats(stats)
+    return deduped[:item_limit]
 
 
 def fetch_regulation_news_items(
@@ -1068,8 +1281,10 @@ def build_available_regulations(
 ) -> list[dict[str, Any]]:
     counts: dict[str, int] = {}
     for item in items:
-        regulation_id = item.get("regulationId")
-        if regulation_id:
+        regulation_ids = item.get("relatedRegulationIds") or [item.get("regulationId")]
+        for regulation_id in regulation_ids:
+            if not regulation_id:
+                continue
             counts[regulation_id] = counts.get(regulation_id, 0) + 1
 
     available_regulations: list[dict[str, Any]] = []
@@ -1165,7 +1380,7 @@ def fetch_all_rss_articles(
     if cached is not None:
         return cached
 
-    collected: list[NewsArticle] = []
+    items_by_regulation: dict[str, list[NewsArticle]] = {}
     all_queries: list[str] = []
 
     for regulation in regulations:
@@ -1186,10 +1401,14 @@ def fetch_all_rss_articles(
                 _cache_set(_REGULATION_ITEMS_CACHE, reg_cache_key, items)
             else:
                 items = _cache_get(_REGULATION_ITEMS_CACHE, reg_cache_key, allow_stale=True) or []
-        collected.extend(items)
+        items_by_regulation[regulation["id"]] = items
 
     merged_limit = min(max(limit, DEFAULT_ALL_NEWS_LIMIT), MAX_ALL_NEWS_LIMIT)
-    merged_items = dedupe_and_merge(collected)[:merged_limit]
+    merged_items = build_balanced_all_news_items(
+        items_by_regulation,
+        regulations,
+        merged_limit,
+    )
 
     response = {
         "items": merged_items,

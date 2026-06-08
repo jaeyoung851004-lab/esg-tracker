@@ -9,12 +9,22 @@ import { RegulationTimeline } from "@/components/regulation/RegulationTimeline";
 import { UncertaintyBanner } from "@/components/regulation/UncertaintyBanner";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
-import { getRegulationDetail, summarizeRegulation } from "@/lib/api";
+import {
+  getNewsFeed,
+  getRegulationDetail,
+  summarizeRegulation,
+} from "@/lib/api";
 import {
   buildOneLineBrief,
+  formatTrackingDateLabel,
   getRiskBorderClass,
+  getTrackingOwner,
+  getTrackingRiskClass,
+  getTrackingRiskLabel,
+  hasTracking,
 } from "@/lib/tracking";
 import type {
+  NewsFeedResponse,
   RegulationDetail,
   RegulationOfficialMetadata,
 } from "@/types/dashboard";
@@ -69,6 +79,15 @@ function formatDate(date?: string | null) {
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return date;
   return parsed.toISOString().slice(0, 10).replaceAll("-", ".");
+}
+
+function formatTopMetric(
+  rows: Array<{ region?: string; type?: string; source?: string; count: number }>,
+  key: "region" | "type" | "source"
+) {
+  const top = rows.slice(0, 5);
+  if (top.length === 0) return "데이터 없음";
+  return top.map((row) => `${row[key] ?? "기타"} ${row.count}`).join(" · ");
 }
 
 function toItems(value?: string | string[]) {
@@ -135,6 +154,7 @@ export default async function RegulationDetailPage({
     ...getCheckpointItems(regulation, "준비"),
   ].filter(isText);
   const monitoringItems = getCheckpointItems(regulation, "모니터링");
+  const newsFeed = await getNewsFeed({ regulationId: regulation.id, limit: 30 });
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -199,6 +219,50 @@ export default async function RegulationDetailPage({
 
           <StageSection regulation={regulation} />
 
+          {hasTracking(regulation) && (
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-navy">현재 단계</h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    지금 어디까지 왔고, 다음 공이 누구에게 있는지 요약합니다.
+                  </p>
+                </div>
+                <span
+                  className={`w-fit rounded-full border px-2.5 py-1 text-xs font-bold ${getTrackingRiskClass(
+                    regulation.tracking?.schedule_risk?.level
+                  )}`}
+                >
+                  일정 리스크 {getTrackingRiskLabel(regulation.tracking?.schedule_risk?.level)}
+                </span>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-5">
+                <TrackingMetric
+                  label="현재 단계"
+                  value={regulation.tracking?.current_stage?.stage_label}
+                />
+                <TrackingMetric
+                  label="담당 주체"
+                  value={getTrackingOwner(regulation.tracking)}
+                />
+                <TrackingMetric
+                  label="다음 이벤트"
+                  value={regulation.tracking?.next_event?.event_label}
+                  subValue={formatTrackingDateLabel(regulation.tracking)}
+                />
+                <TrackingMetric
+                  label="기업 행동 포인트"
+                  value={regulation.tracking?.business_action?.now}
+                />
+                <TrackingMetric
+                  label="일정 리스크"
+                  value={regulation.tracking?.schedule_risk?.user_message}
+                />
+              </div>
+            </section>
+          )}
+
           <Panel title="핵심 의무">
             <ol className="space-y-3 text-sm leading-relaxed text-slate-700">
               {(regulation.ai_layer.key_points ?? []).slice(0, 5).map((item, index) => (
@@ -221,9 +285,7 @@ export default async function RegulationDetailPage({
           </Panel>
 
           <Panel title="최근 규제 신호">
-            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500">
-              최근 규제 신호를 불러오는 중입니다
-            </div>
+            <NewsSignalSummary feed={newsFeed} />
           </Panel>
 
           <Panel title="벌금·제재">
@@ -297,6 +359,54 @@ function ActionColumn({ title, items }: { title: string; items: string[] }) {
       ) : (
         <p className="mt-3 text-xs text-slate-400">확인 필요</p>
       )}
+    </div>
+  );
+}
+
+function TrackingMetric({
+  label,
+  value,
+  subValue,
+}: {
+  label: string;
+  value?: string;
+  subValue?: string;
+}) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-3 py-3">
+      <p className="text-xs font-black text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-bold leading-relaxed text-navy">
+        {value || "확인 필요"}
+      </p>
+      {subValue && <p className="mt-1 text-xs text-slate-400">{subValue}</p>}
+    </div>
+  );
+}
+
+function NewsSignalSummary({ feed }: { feed: NewsFeedResponse }) {
+  const metrics = [
+    { label: "수집 기사", value: `${feed.count}건` },
+    { label: "보도 지역 TOP", value: formatTopMetric(feed.regionCounts ?? [], "region") },
+    { label: "반응 유형 TOP", value: formatTopMetric(feed.reactionTypeCounts ?? [], "type") },
+    { label: "플레이어 TOP", value: formatTopMetric(feed.actorTypeCounts ?? [], "type") },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2">
+        {metrics.map((metric) => (
+          <div key={metric.label} className="rounded-lg bg-slate-50 px-3 py-3">
+            <p className="text-xs font-black text-slate-500">{metric.label}</p>
+            <p className="mt-1 text-sm font-bold leading-relaxed text-navy">{metric.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between">
+        <span>Google News RSS 기준 최근 30일 기사에서 규제별 보도 신호를 요약합니다.</span>
+        <Link href="/news" className="shrink-0 text-xs font-black text-emeraldBrand hover:underline">
+          뉴스 &amp; 인사이트 보기
+        </Link>
+      </div>
     </div>
   );
 }

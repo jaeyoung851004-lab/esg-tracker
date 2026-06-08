@@ -46,14 +46,13 @@ export type RegulationNextEventStatus =
 export type RegulationScheduleRiskLevel = "low" | "medium" | "high" | "unknown";
 
 export interface RegulationTracking {
-  one_line_brief?: string;
-  regulation_types?: string[];
+  regulation_types?: RegulationTrackingType[];
   lifecycle_status?: string;
   current_stage?: {
     stage_id?: string;
     stage_label?: string;
     stage_owner?: string;
-    stage_status?: string;
+    stage_status?: RegulationStageStatus;
     confidence?: string;
   };
   next_event?: {
@@ -64,7 +63,6 @@ export interface RegulationTracking {
     owner?: string;
     status?: RegulationNextEventStatus;
   };
-  next_event_date_text?: string;
   business_action?: {
     now?: string;
     next_90_days?: string;
@@ -138,6 +136,23 @@ export interface RegulationNewsConfig {
   required_keywords?: string[];
   exclude_keywords?: string[];
 }
+
+export type RegulationTrackingType =
+  | "framework_regulation"
+  | "directive_transposition"
+  | "reporting_disclosure"
+  | "trade_border"
+  | "delegated_acts_required"
+  | "standards_required"
+  | "phased_application"
+  | "revision_or_simplification";
+
+export type RegulationStageStatus =
+  | "not_started"
+  | "in_progress"
+  | "done"
+  | "delayed"
+  | "uncertain";
 
 export interface DelegatedActTrackerItem {
   product_group?: string;
@@ -214,6 +229,7 @@ export interface RegulationDetail extends Regulation {
   news_config: RegulationNewsConfig;
   display: RegulationDisplay;
   action_checkpoints: RegulationActionCheckpoints;
+  tracking: RegulationTracking;
   company_mapping: RegulationCompanyMapping;
 }
 

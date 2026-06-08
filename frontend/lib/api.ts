@@ -315,7 +315,7 @@ function convertRegulation(reg: OldRegulation): RegulationDetail {
     history: reg.history,
     display: reg.display ?? {},
     action_checkpoints: reg.action_checkpoints ?? {},
-    tracking: reg.tracking,
+    tracking: reg.tracking ?? {},
     delegated_acts_tracker: reg.delegated_acts_tracker,
     korean_company_note: reg.korean_company_note,
     company_mapping: reg.company_mapping ?? {},

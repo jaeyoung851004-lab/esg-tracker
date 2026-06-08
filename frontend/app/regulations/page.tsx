@@ -1,19 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
-import { getRegulationsSnapshot } from "@/lib/api";
-import {
-  getCurrentStageLabel,
-  getNextEventDateLabel,
-  getNextEventLabel,
-} from "@/lib/tracking";
+import { getRegulations } from "@/lib/api";
 import type {
   Regulation,
   RegulationOfficialMetadata,
   RegulationSummary,
 } from "@/types/dashboard";
+import {
+  formatTrackingDateLabel,
+  getTrackingOwner,
+  hasTracking,
+} from "@/lib/tracking";
+
+const STATUS_STYLE: Record<string, string> = {
+  success: "bg-green-50 text-green-700",
+  partial: "bg-blue-50 text-blue-700",
+  phased: "bg-blue-50 text-blue-700",
+  info: "bg-blue-50 text-blue-700",
+  warning: "bg-amber-50 text-amber-700",
+  delayed: "bg-red-50 text-red-700",
+  danger: "bg-red-50 text-red-700",
+  uncertain: "bg-orange-50 text-orange-700",
+  paused: "bg-orange-50 text-orange-700",
+};
 
 const CODE_COLOR: Record<string, string> = {
   ESPR: "bg-emerald-600",
@@ -39,6 +51,13 @@ const CATEGORY_FILTERS = [
   { label: "AI·디지털", categories: ["AI·디지털"] },
 ];
 
+const STATUS_FILTER_ALIASES: Record<string, string[]> = {
+  phased: ["phased", "partial", "success"],
+  legislative: ["legislative", "warning", "info"],
+  delayed: ["delayed", "scaled_back", "danger"],
+  paused: ["paused", "suspended", "uncertain"],
+};
+
 function getOfficialMetadata(reg: Regulation): RegulationOfficialMetadata {
   return (
     reg.official_metadata ||
@@ -48,14 +67,18 @@ function getOfficialMetadata(reg: Regulation): RegulationOfficialMetadata {
       source_url: reg.source_url || reg.sourceUrl || "",
       celex_id: reg.celex_id || reg.celexId || "",
       official_document_url:
-        reg.official_document_url ||
-        reg.officialDocumentUrl ||
-        reg.official_url ||
-        "",
+        reg.official_document_url || reg.officialDocumentUrl || reg.official_url || "",
       last_synced_at: reg.last_synced_at ?? reg.lastSyncedAt ?? null,
       last_verified_at: reg.last_verified_at ?? reg.lastVerifiedAt ?? null,
     }
   );
+}
+
+function formatDate(date?: string | null) {
+  if (!date) return "미확인";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed.toISOString().slice(0, 10).replaceAll("-", ".");
 }
 
 function getIndustries(reg: Regulation) {
@@ -68,10 +91,51 @@ function getSummaryShort(reg: Regulation) {
   return reg.summary_short || reg.summary || "규제 요약 확인 필요";
 }
 
+function getNextMilestone(reg: RegulationSummary) {
+  if (hasTracking(reg)) {
+    return {
+      label: reg.tracking?.next_event?.event_label || "다음 이벤트",
+      value: formatTrackingDateLabel(reg.tracking),
+    };
+  }
+
+  return {
+    label: reg.card_date_label || reg.deadlineLabel || "다음 일정",
+    value: reg.card_date_value || reg.deadline || "미정",
+  };
+}
+
+function getCurrentStage(reg: RegulationSummary) {
+  if (hasTracking(reg)) {
+    return {
+      label: reg.tracking?.current_stage?.stage_label || reg.status,
+      owner: getTrackingOwner(reg.tracking),
+    };
+  }
+
+  return {
+    label: reg.status,
+    owner: "",
+  };
+}
+
+function matchesStatusFilter(reg: RegulationSummary, status: string) {
+  if (!status) return true;
+  const values = [reg.statusKey, reg.statusTone].filter(Boolean);
+  return (STATUS_FILTER_ALIASES[status] ?? [status]).some((value) =>
+    values.includes(value)
+  );
+}
+
 export default function RegulationsPage() {
-  const [regulations] = useState<RegulationSummary[]>(() => getRegulationsSnapshot());
+  const [regulations, setRegulations] = useState<RegulationSummary[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("전체");
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    getRegulations().then(setRegulations);
+  }, []);
 
   const activeFilter = CATEGORY_FILTERS.find((item) => item.label === category);
 
@@ -88,9 +152,10 @@ export default function RegulationsPage() {
         reg.country,
         reg.industry,
         reg.status,
-        reg.summary_short,
-        getCurrentStageLabel(reg),
-        getNextEventLabel(reg),
+        reg.tracking?.current_stage?.stage_label,
+        reg.tracking?.current_stage?.stage_owner,
+        reg.tracking?.next_event?.event_label,
+        reg.tracking?.next_event?.owner,
         metadata.source_name,
         metadata.celex_id,
       ]
@@ -102,10 +167,11 @@ export default function RegulationsPage() {
       const matchesCategory =
         !activeFilter?.categories.length ||
         activeFilter.categories.includes(reg.category);
+      const matchesStatus = matchesStatusFilter(reg, status);
 
-      return matchesQuery && matchesCategory;
+      return matchesQuery && matchesCategory && matchesStatus;
     });
-  }, [activeFilter, regulations, query]);
+  }, [activeFilter, regulations, query, status]);
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -123,6 +189,41 @@ export default function RegulationsPage() {
           </div>
 
           <div className="space-y-3">
+            <section className="rounded-lg border border-emerald-100 bg-white p-4 shadow-sm">
+              <div className="grid gap-4 lg:grid-cols-[1.2fr_1.8fr]">
+                <div>
+                  <h2 className="text-sm font-black text-navy">EU 규제 진행 단계</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    EU 규제는 법안이 발효돼도 곧바로 기업 의무가 발생하지 않을 수 있습니다.
+                    위임법령, 이행법령, 기술표준, 회원국 전환입법 등 후속 절차에 따라 실제
+                    적용 시점이 달라집니다.
+                  </p>
+                </div>
+                <ol className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    "집행위 제안",
+                    "의회·이사회 심의",
+                    "트라일로그",
+                    "최종 채택",
+                    "관보 게재·발효",
+                    "세부규칙·표준 마련",
+                    "기업 준비기간",
+                    "의무 적용·집행",
+                  ].map((step, index) => (
+                    <li
+                      key={step}
+                      className="flex items-center gap-2 rounded-md bg-slate-50 px-2.5 py-2"
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-black text-emerald-700">
+                        {index + 1}
+                      </span>
+                      <span className="font-semibold">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </section>
+
             <div className="flex flex-wrap gap-2">
               {CATEGORY_FILTERS.map((filter) => (
                 <button
@@ -141,7 +242,7 @@ export default function RegulationsPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <div className="flex max-w-lg flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <div className="flex max-w-sm flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
                 <span className="text-sm text-slate-400">검색</span>
                 <input
                   type="text"
@@ -152,12 +253,25 @@ export default function RegulationsPage() {
                 />
               </div>
 
-              {(query || category !== "전체") && (
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 shadow-sm outline-none"
+              >
+                <option value="">전체 상태</option>
+                <option value="phased">단계적 시행</option>
+                <option value="legislative">입법 진행</option>
+                <option value="delayed">축소·지연</option>
+                <option value="paused">유예/불확실</option>
+              </select>
+
+              {(query || category !== "전체" || status) && (
                 <button
                   type="button"
                   onClick={() => {
                     setQuery("");
                     setCategory("전체");
+                    setStatus("");
                   }}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-sm hover:bg-slate-50"
                 >
@@ -178,7 +292,7 @@ export default function RegulationsPage() {
                     <th className="min-w-[190px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
                       현재 단계
                     </th>
-                    <th className="min-w-[230px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
+                    <th className="min-w-[220px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
                       다음 이벤트
                     </th>
                     <th className="min-w-[220px] px-4 py-3 text-left text-[11px] font-black text-slate-500">
@@ -192,7 +306,10 @@ export default function RegulationsPage() {
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {filteredRegulations.map((reg) => {
                     const metadata = getOfficialMetadata(reg);
-                    const officialUrl = metadata.source_url || metadata.official_document_url;
+                    const milestone = getNextMilestone(reg);
+                    const currentStage = getCurrentStage(reg);
+                    const officialUrl =
+                      metadata.official_document_url || metadata.source_url || reg.official_url;
 
                     return (
                       <tr
@@ -232,17 +349,30 @@ export default function RegulationsPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4">
-                          <p className="text-sm font-bold leading-snug text-navy">
-                            {getCurrentStageLabel(reg)}
-                          </p>
+                        <td className="px-4 py-3.5">
+                          <div>
+                            <span
+                              className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold leading-snug ${
+                                STATUS_STYLE[reg.statusTone] ??
+                                STATUS_STYLE[reg.statusKey ?? ""] ??
+                                "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {currentStage.label}
+                            </span>
+                            {currentStage.owner && (
+                              <p className="mt-1 text-[11px] leading-snug text-slate-400">
+                                {currentStage.owner}
+                              </p>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-4 py-4">
-                          <p className="line-clamp-2 text-sm font-bold leading-snug text-slate-700">
-                            {getNextEventLabel(reg)}
+                        <td className="px-4 py-3.5">
+                          <p className="line-clamp-2 text-xs font-bold text-slate-500">
+                            {milestone.label}
                           </p>
-                          <p className="mt-1 text-xs font-semibold text-emerald-700">
-                            {getNextEventDateLabel(reg)}
+                          <p className="mt-1 text-sm font-semibold text-navy">
+                            {milestone.value}
                           </p>
                         </td>
                         <td className="px-4 py-4 text-xs leading-relaxed text-slate-600">
