@@ -1,5 +1,5 @@
 import type { RegulationDetail } from "@/types/dashboard";
-import { getNextEventDateLabel, getNextEventLabel } from "@/lib/tracking";
+import { formatTrackingDateLabel, hasTracking } from "@/lib/tracking";
 
 function firstItems(value?: string | string[]) {
   if (!value) return [];
@@ -27,8 +27,8 @@ export function PhaseCard({ regulation }: { regulation: RegulationDetail }) {
       obligations: preferItems(regulation.tracking?.business_action?.now, checkpoints["지금"]),
     },
     {
-      title: getNextEventLabel(regulation),
-      date: getNextEventDateLabel(regulation),
+      title: regulation.tracking?.next_event?.event_label || "다음 이벤트 확인 필요",
+      date: hasTracking(regulation) ? formatTrackingDateLabel(regulation.tracking) : (regulation.card_date_value || regulation.deadline || "시점 미정"),
       active: false,
       obligations: preferItems(
         regulation.tracking?.business_action?.before_next_event,

@@ -1,8 +1,8 @@
 import type { RegulationDetail } from "@/types/dashboard";
 import {
-  formatTrackingDday,
-  getNextEventDateLabel,
-  getNextEventLabel,
+  formatTrackingDateLabel,
+  formatTrackingEventTiming,
+  hasTracking,
 } from "@/lib/tracking";
 
 type TimelineState = "done" | "current" | "next" | "upcoming";
@@ -23,7 +23,7 @@ export function RegulationTimeline({
 }) {
   const history = regulation.history ?? [];
   const currentStage = regulation.tracking?.current_stage?.stage_label;
-  const dday = formatTrackingDday(regulation.tracking);
+  const dday = hasTracking(regulation) ? formatTrackingEventTiming(regulation.tracking) : null;
   const items = [
     ...history.map((item) => ({
       key: `${item.date}-${item.event}`,
@@ -43,8 +43,8 @@ export function RegulationTimeline({
       : null,
     {
       key: "next",
-      date: getNextEventDateLabel(regulation),
-      label: getNextEventLabel(regulation),
+      date: hasTracking(regulation) ? formatTrackingDateLabel(regulation.tracking) : (regulation.card_date_value || regulation.deadline || "시점 미정"),
+      label: regulation.tracking?.next_event?.event_label || regulation.card_date_label || "다음 이벤트 확인 필요",
       source: regulation.tracking?.next_event?.owner,
       state: "next" as TimelineState,
     },
