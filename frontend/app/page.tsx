@@ -27,6 +27,22 @@ function getApiBase() {
 }
 
 // ─────────────────────────────────────────
+// 뉴스 전체 건수 fetch
+// ─────────────────────────────────────────
+async function getNewsTotalCount(): Promise<number> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/news?limit=200`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return (data.items || []).length;
+  } catch {
+    return 0;
+  }
+}
+
+// ─────────────────────────────────────────
 // 뉴스 fetch (대시보드용)
 // ─────────────────────────────────────────
 async function getDashboardNews() {
@@ -233,10 +249,11 @@ function formatDate(dateStr?: string) {
 // 메인 페이지
 // ─────────────────────────────────────────
 export default async function DashboardPage() {
-  const [regulations, latestNews, regionCounts] = await Promise.all([
+  const [regulations, latestNews, regionCounts, totalNewsCount] = await Promise.all([
     getRegulations(),
     getDashboardNews(),
     getRegionNewsCount(),
+    getNewsTotalCount(),
   ]);
 
   const urgentCount = regulations.filter(
@@ -294,7 +311,7 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[
               { label: "모니터링 규제", value: regulations.length, unit: "개", sub: "EU 핵심 규제 추적 중", color: "text-navy", bg: "bg-white", border: "border-slate-200" },
-              { label: "최근 30일 뉴스", value: latestNews.length > 0 ? `${latestNews.length}+` : "—", unit: "", sub: "Google News RSS 수집", color: "text-emeraldBrand", bg: "bg-white", border: "border-slate-200" },
+              { label: "최근 30일 뉴스", value: totalNewsCount > 0 ? `${totalNewsCount}건` : "—", unit: "", sub: "Google News RSS 수집", color: "text-emeraldBrand", bg: "bg-white", border: "border-slate-200" },
               { label: "주의 규제", value: updatedCount, unit: "개", sub: "축소·지연·경고 상태", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
               { label: "시행 임박", value: urgentCount, unit: "개", sub: "D-90 이내", color: "text-red-600", bg: "bg-red-50", border: "border-red-100" },
             ].map((card) => (
