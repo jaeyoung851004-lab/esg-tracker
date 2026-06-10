@@ -61,8 +61,8 @@ const CODE_COLORS: Record<string, string> = {
   "IMO NZF": "bg-cyan-800",
 };
 
-function codeColor(code: string) {
-  return CODE_COLORS[code] ?? "bg-slate-600";
+function codeColor(acronym: string) {
+  return CODE_COLORS[acronym] ?? "bg-slate-600";
 }
 
 function DDayBadge({ dDay }: { dDay: number | null }) {
@@ -91,21 +91,19 @@ export default async function DashboardPage() {
     return { reg, tracking, dDay };
   });
 
-  // 이번 주 확인 이벤트 (D-day 기준 정렬)
-  const upcomingEvents = [...regWithDDay]
-    .sort((a, b) => {
-      const da = a.dDay ?? 9999;
-      const db = b.dDay ?? 9999;
-      return da - db;
-    });
+  // D-day 순 정렬
+  const upcomingEvents = [...regWithDDay].sort((a, b) => {
+    const da = a.dDay ?? 9999;
+    const db = b.dDay ?? 9999;
+    return da - db;
+  });
 
   // 지금 단계 체크포인트 (최대 3개)
   const nowCheckpoints = CHECKPOINTS.filter((c) => c.phase === "지금").slice(0, 3);
 
   // 긴급 카운트 (D-90 이내)
   const urgentCount = regWithDDay.filter((r) => r.dDay !== null && r.dDay >= 0 && r.dDay <= 90).length;
-  // 90일 내 일정 카운트
-  const within90 = regWithDDay.filter((r) => r.dDay !== null && r.dDay >= 0 && r.dDay <= 90).length;
+  const within90 = urgentCount;
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc]">
@@ -163,14 +161,14 @@ export default async function DashboardPage() {
                     <div className="mt-0.5 min-w-[52px] text-right">
                       <DDayBadge dDay={dDay} />
                     </div>
-                    <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(reg.code)}`}>
-                      {reg.code}
+                    <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(reg.acronym)}`}>
+                      {reg.acronym}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-navy">{tracking?.next_event_label ?? "다음 이벤트 확인 필요"}</p>
                       <p className="mt-0.5 text-xs text-slate-500 truncate">{tracking?.business_action_now ?? ""}</p>
                       <p className="mt-0.5 text-[11px] text-slate-400">
-                        {tracking?.next_event_date} · 담당: {tracking?.business_action_owners.join(", ")}
+                        {tracking?.next_event_expected_date}
                       </p>
                     </div>
                   </a>
@@ -191,14 +189,16 @@ export default async function DashboardPage() {
                 {nowCheckpoints.map((cp) => {
                   const reg = REG_MASTER.find((r) => r.id === cp.regulation_id);
                   return (
-                    <div key={cp.id} className="flex items-start gap-3 px-5 py-3.5 bg-white/50">
-                      <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(reg?.code ?? "")}`}>
-                        {reg?.code}
+                    <div key={cp.checkpoint_id} className="flex items-start gap-3 px-5 py-3.5 bg-white/50">
+                      <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(reg?.acronym ?? "")}`}>
+                        {reg?.acronym}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-navy leading-snug">{cp.action}</p>
-                        <p className="mt-0.5 text-[11px] text-slate-500">담당: {cp.dept.join(", ")}</p>
-                        <p className="mt-0.5 text-[11px] text-red-600 font-bold">{cp.deadline_note}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">{cp.target_function.join(", ")}</p>
+                        {cp.notes && (
+                          <p className="mt-0.5 text-[11px] text-red-600 font-bold">{cp.notes}</p>
+                        )}
                       </div>
                     </div>
                   );
@@ -221,15 +221,15 @@ export default async function DashboardPage() {
                   className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-emeraldBrand hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-2 mb-3">
-                    <span className={`rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(reg.code)}`}>
-                      {reg.code}
+                    <span className={`rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(reg.acronym)}`}>
+                      {reg.acronym}
                     </span>
                     <DDayBadge dDay={dDay} />
                   </div>
                   <p className="text-sm font-black text-navy leading-snug">{reg.name_ko}</p>
-                  <p className="mt-1 text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{reg.description_short}</p>
+                  <p className="mt-1 text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{reg.summary_short}</p>
                   <div className="mt-3 pt-3 border-t border-slate-100">
-                    <p className="text-[11px] font-bold text-slate-600">{tracking?.current_stage_label}</p>
+                    <p className="text-[11px] font-bold text-slate-600 line-clamp-1">{tracking?.current_stage_label}</p>
                     <p className="mt-0.5 text-[11px] text-slate-400 truncate">{tracking?.next_event_label}</p>
                   </div>
                 </a>

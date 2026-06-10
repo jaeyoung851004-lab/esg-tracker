@@ -47,8 +47,8 @@ const REG_FILTERS: { label: string; id: RegId | "전체" }[] = [
   { label: "전체", id: "전체" },
   { label: "ESPR", id: "espr" },
   { label: "CBAM", id: "cbam" },
-  { label: "AI Act", id: "ai-act" },
-  { label: "IMO NZF", id: "imo-nzf" },
+  { label: "AI Act", id: "ai_act" },
+  { label: "IMO NZF", id: "imo_nzf" },
 ];
 
 export default function CheckpointsPage() {
@@ -97,23 +97,20 @@ export default function CheckpointsPage() {
 
           {/* 규제 필터 */}
           <div className="flex flex-wrap gap-2">
-            {REG_FILTERS.map((f) => {
-              const reg = REG_MASTER.find((r) => r.id === f.id);
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setRegFilter(f.id)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-                    regFilter === f.id
-                      ? "border-navy bg-navy text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-emeraldBrand hover:text-emeraldBrand"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              );
-            })}
+            {REG_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setRegFilter(f.id)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                  regFilter === f.id
+                    ? "border-navy bg-navy text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-emeraldBrand hover:text-emeraldBrand"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
 
           {/* 체크포인트 목록 */}
@@ -138,21 +135,26 @@ export default function CheckpointsPage() {
                     const tracking = REG_TRACKING.find((t) => t.regulation_id === cp.regulation_id);
                     const dDay = calcDDay(tracking?.next_event_date_iso ?? null);
                     return (
-                      <div key={cp.id} className={`rounded-xl border ${s.border} ${s.bg} overflow-hidden`}>
+                      <div key={cp.checkpoint_id} className={`rounded-xl border ${s.border} ${s.bg} overflow-hidden`}>
                         <div className="flex items-start gap-3 px-4 py-3.5 bg-white/60">
-                          <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${CODE_COLORS[reg?.code ?? ""] ?? "bg-slate-600"}`}>
-                            {reg?.code}
+                          <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${CODE_COLORS[reg?.acronym ?? ""] ?? "bg-slate-600"}`}>
+                            {reg?.acronym}
                           </span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-black text-navy">{cp.action}</p>
-                            <p className="mt-1 text-xs leading-relaxed text-slate-600">{cp.detail}</p>
+                            {cp.notes && (
+                              <p className="mt-1 text-xs leading-relaxed text-slate-600">{cp.notes}</p>
+                            )}
                             <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${s.text} ${s.border} bg-white/70`}>
-                                {cp.deadline_note}
-                              </span>
-                              {cp.dept.map((d) => (
+                              {cp.target_function.map((d) => (
                                 <span key={d} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">{d}</span>
                               ))}
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                                cp.priority === "high" ? `${s.text} ${s.border} bg-white/70` :
+                                "text-slate-500 border-slate-200 bg-white/70"
+                              }`}>
+                                {cp.priority === "high" ? "우선순위 높음" : cp.priority === "medium" ? "중간" : "낮음"}
+                              </span>
                             </div>
                           </div>
                           {dDay !== null && dDay >= 0 && dDay <= 90 && (

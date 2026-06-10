@@ -9,7 +9,7 @@ import {
   REG_SCOPE,
   TRACKING_UNITS,
   calcDDay,
-  type RegMaster,
+  type StageStatus,
 } from "@/data/regulation-db.mock";
 
 const CODE_COLORS: Record<string, string> = {
@@ -27,7 +27,15 @@ const STATUS_STYLE: Record<string, string> = {
   uncertain: "bg-orange-50 text-orange-700 border-orange-200",
 };
 
-const CATEGORY_FILTERS = ["전체", "순환경제", "탄소·기후", "AI·디지털"];
+const CATEGORY_FILTERS = ["전체", "순환경제", "탄소·기후", "AI·디지털", "해운·물류"];
+
+function stageProgress(s: StageStatus): number {
+  return s === "done" ? 100 : s === "in_progress" ? 65 : 5;
+}
+
+function stageLabel(s: StageStatus): string {
+  return s === "done" ? "완료" : s === "in_progress" ? "진행 중" : "미시작";
+}
 
 function DDayBadge({ dDay }: { dDay: number | null }) {
   if (dDay === null) return <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-500">예상</span>;
@@ -46,7 +54,7 @@ export default function RegulationsPage() {
       const matchCat = category === "전체" || reg.category === category;
       const matchQ =
         !q ||
-        reg.code.toLowerCase().includes(q) ||
+        reg.acronym.toLowerCase().includes(q) ||
         reg.name_ko.toLowerCase().includes(q) ||
         reg.name_en.toLowerCase().includes(q) ||
         reg.category.toLowerCase().includes(q);
@@ -74,7 +82,7 @@ export default function RegulationsPage() {
 
           {/* 필터 */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {CATEGORY_FILTERS.map((cat) => (
                 <button
                   key={cat}
@@ -119,8 +127,8 @@ export default function RegulationsPage() {
                   {/* 상단 헤더 */}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2">
-                      <span className={`rounded px-2 py-0.5 text-[11px] font-black text-white ${CODE_COLORS[reg.code] ?? "bg-slate-600"}`}>
-                        {reg.code}
+                      <span className={`rounded px-2 py-0.5 text-[11px] font-black text-white ${CODE_COLORS[reg.acronym] ?? "bg-slate-600"}`}>
+                        {reg.acronym}
                       </span>
                       <span className="text-xs text-slate-400">{reg.category}</span>
                     </div>
@@ -129,19 +137,19 @@ export default function RegulationsPage() {
 
                   <h3 className="text-base font-black text-navy leading-snug">{reg.name_ko}</h3>
                   <p className="mt-1 text-xs text-slate-400">{reg.name_en}</p>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-600 line-clamp-2">{reg.description_short}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600 line-clamp-2">{reg.summary_short}</p>
 
                   {/* 현재 단계 + 다음 이벤트 */}
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <div className="rounded-lg bg-slate-50 px-3 py-2">
                       <p className="text-[10px] text-slate-400 mb-0.5">현재 단계</p>
-                      <p className="text-xs font-bold text-navy leading-snug">{tracking?.current_stage_label}</p>
+                      <p className="text-xs font-bold text-navy leading-snug line-clamp-2">{tracking?.current_stage_label}</p>
                       <p className="mt-0.5 text-[10px] text-slate-400 truncate">{tracking?.current_stage_owner}</p>
                     </div>
                     <div className="rounded-lg bg-slate-50 px-3 py-2">
                       <p className="text-[10px] text-slate-400 mb-0.5">다음 이벤트</p>
                       <p className="text-xs font-bold text-navy leading-snug line-clamp-2">{tracking?.next_event_label}</p>
-                      <p className="mt-0.5 text-[10px] text-slate-400">{tracking?.next_event_date}</p>
+                      <p className="mt-0.5 text-[10px] text-slate-400">{tracking?.next_event_expected_date}</p>
                     </div>
                   </div>
 
@@ -150,7 +158,7 @@ export default function RegulationsPage() {
                     <div className="mt-3">
                       <p className="text-[10px] font-bold text-slate-400 mb-1.5">적용 대상</p>
                       <div className="flex flex-wrap gap-1">
-                        {scope.who_applies.slice(0, 3).map((w) => (
+                        {scope.affected_company_types.slice(0, 3).map((w) => (
                           <span key={w} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">{w}</span>
                         ))}
                       </div>
@@ -160,17 +168,17 @@ export default function RegulationsPage() {
                   {/* 섹터 트래킹 미니 */}
                   {units.length > 0 && (
                     <div className="mt-3 space-y-1.5">
-                      <p className="text-[10px] font-bold text-slate-400">섹터 현황</p>
+                      <p className="text-[10px] font-bold text-slate-400">단위 추적 현황</p>
                       {units.map((u) => (
-                        <div key={u.unit_name} className="flex items-center gap-2">
-                          <span className="w-20 shrink-0 text-[10px] text-slate-500 truncate">{u.unit_name}</span>
+                        <div key={u.unit_id} className="flex items-center gap-2">
+                          <span className="w-24 shrink-0 text-[10px] text-slate-500 truncate">{u.unit_label}</span>
                           <div className="flex-1 overflow-hidden rounded-full bg-slate-100 h-1.5">
                             <div
                               className="h-full rounded-full bg-emeraldBrand"
-                              style={{ width: `${u.progress_pct}%` }}
+                              style={{ width: `${stageProgress(u.stage_status)}%` }}
                             />
                           </div>
-                          <span className="w-14 shrink-0 text-right text-[10px] text-slate-500">{u.status}</span>
+                          <span className="w-14 shrink-0 text-right text-[10px] text-slate-500">{stageLabel(u.stage_status)}</span>
                         </div>
                       ))}
                     </div>
