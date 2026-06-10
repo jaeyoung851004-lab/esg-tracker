@@ -4,6 +4,16 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { getRegulations } from "@/lib/api";
 import { REGULATION_MASTER } from "@/data/regulations.master";
+import {
+  calculateTrackingDDay,
+  formatTrackingDateLabel,
+  formatTrackingEventTiming,
+  getTrackingEventSortValue,
+  getTrackingOwner,
+  getTrackingRiskClass,
+  getTrackingRiskLabel,
+  hasTracking,
+} from "@/lib/tracking";
 
 // ─────────────────────────────────────────
 // 백엔드 API base URL
@@ -14,6 +24,22 @@ function getApiBase() {
     process.env.NEXT_PUBLIC_ESG_TRACKER_API_BASE_URL ||
     "http://127.0.0.1:8000"
   );
+}
+
+// ─────────────────────────────────────────
+// 뉴스 전체 건수 fetch
+// ─────────────────────────────────────────
+async function getNewsTotalCount(): Promise<number> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/news?limit=200`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return (data.items || []).length;
+  } catch {
+    return 0;
+  }
 }
 
 // ─────────────────────────────────────────
@@ -223,14 +249,18 @@ function formatDate(dateStr?: string) {
 // 메인 페이지
 // ─────────────────────────────────────────
 export default async function DashboardPage() {
-  const [regulations, latestNews, regionCounts] = await Promise.all([
+  const [regulations, latestNews, regionCounts, totalNewsCount] = await Promise.all([
     getRegulations(),
     getDashboardNews(),
     getRegionNewsCount(),
+    getNewsTotalCount(),
   ]);
 
   const urgentCount = regulations.filter(
-    (r) => typeof r.dDay === "number" && r.dDay >= 0 && r.dDay <= 90
+    (r) => {
+      const dDay = calculateTrackingDDay(r.tracking);
+      return typeof dDay === "number" && dDay >= 0 && dDay <= 90;
+    }
   ).length;
 
   const updatedCount = regulations.filter(
@@ -240,6 +270,26 @@ export default async function DashboardPage() {
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric", month: "long", day: "numeric",
   });
+
+  const trackingEvents = regulations
+    .filter(hasTracking)
+    .map((reg) => ({
+      regulation: reg,
+      dDay: calculateTrackingDDay(reg.tracking),
+      sortValue: getTrackingEventSortValue(reg),
+    }));
+  const nextCoreEvents = [
+    ...trackingEvents
+      .filter((item) => item.dDay !== null)
+      .sort((a, b) => a.sortValue - b.sortValue),
+    ...trackingEvents
+      .filter((item) => item.dDay === null)
+      .sort((a, b) =>
+        (a.regulation.tracking?.next_event?.expected_date || "9999").localeCompare(
+          b.regulation.tracking?.next_event?.expected_date || "9999"
+        )
+      ),
+  ].slice(0, 8);
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc]">
@@ -261,7 +311,7 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[
               { label: "모니터링 규제", value: regulations.length, unit: "개", sub: "EU 핵심 규제 추적 중", color: "text-navy", bg: "bg-white", border: "border-slate-200" },
-              { label: "최근 30일 뉴스", value: latestNews.length > 0 ? `${latestNews.length}+` : "—", unit: "", sub: "Google News RSS 수집", color: "text-emeraldBrand", bg: "bg-white", border: "border-slate-200" },
+              { label: "최근 30일 뉴스", value: totalNewsCount > 0 ? `${totalNewsCount}건` : "—", unit: "", sub: "Google News RSS 수집", color: "text-emeraldBrand", bg: "bg-white", border: "border-slate-200" },
               { label: "주의 규제", value: updatedCount, unit: "개", sub: "축소·지연·경고 상태", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
               { label: "시행 임박", value: urgentCount, unit: "개", sub: "D-90 이내", color: "text-red-600", bg: "bg-red-50", border: "border-red-100" },
             ].map((card) => (
@@ -274,6 +324,66 @@ export default async function DashboardPage() {
               </div>
             ))}
           </div>
+
+          {/* 다음 핵심 규제 이벤트 */}
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <h2 className="text-sm font-black text-navy">다음 핵심 규제 이벤트</h2>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  확정일은 D-day로, 예상 일정은 별도 라벨로 표시합니다
+                </p>
+              </div>
+              <a href="/regulations" className="text-xs font-bold text-emeraldBrand hover:underline">규제 DB 보기 →</a>
+            </div>
+            <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-4">
+              {nextCoreEvents.map(({ regulation, dDay }) => {
+                const riskLevel = regulation.tracking?.schedule_risk?.level;
+                return (
+                  <a
+                    key={regulation.id}
+                    href={`/regulations/${regulation.id}`}
+                    className="block rounded-lg border border-slate-200 p-4 transition hover:border-emeraldBrand hover:bg-slate-50"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(regulation.code)}`}>
+                          {regulation.code}
+                        </span>
+                        <p className="truncate text-sm font-black text-navy">
+                          {regulation.name_ko || regulation.title}
+                        </p>
+                      </div>
+                      {riskLevel === "high" && (
+                        <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                          위험
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-3 line-clamp-2 text-sm font-bold leading-snug text-slate-700">
+                      {regulation.tracking?.next_event?.event_label || "다음 이벤트 확인 필요"}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                        {formatTrackingDateLabel(regulation.tracking)}
+                      </span>
+                      {dDay !== null && dDay >= 0 && (
+                        <span className="rounded-full bg-red-50 px-2 py-0.5 font-mono text-[11px] font-bold text-red-600">
+                          {formatTrackingEventTiming(regulation.tracking)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+                      담당 주체: {getTrackingOwner(regulation.tracking)}
+                    </p>
+                    <span className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${getTrackingRiskClass(riskLevel)}`}>
+                      일정 리스크 {getTrackingRiskLabel(riskLevel)}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </section>
 
           {/* 규제 동향 테이블 + 지역 맵 */}
           <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
@@ -302,7 +412,12 @@ export default async function DashboardPage() {
                     {regulations.map((reg) => {
                       const badge = getStatusBadge(reg.statusTone, reg.status);
                       const master = REGULATION_MASTER.find((m) => m.id === reg.id);
-                      const checkpoint = reg.card_date_label || "—";
+                      const checkpoint =
+                        reg.tracking?.next_event?.event_label || reg.card_date_label || "—";
+                      const checkpointTiming = hasTracking(reg)
+                        ? formatTrackingDateLabel(reg.tracking)
+                        : reg.card_date_value || reg.deadline;
+                      const trackingDday = calculateTrackingDDay(reg.tracking);
                       return (
                         <tr key={reg.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3">
@@ -326,8 +441,19 @@ export default async function DashboardPage() {
                               {badge.label}
                             </span>
                           </td>
-                          <td className="max-w-[180px] truncate px-4 py-3 text-xs text-slate-500">{checkpoint}</td>
-                          <td className="px-4 py-3 text-center"><DDayBadge dDay={reg.dDay ?? undefined} /></td>
+                          <td className="max-w-[220px] px-4 py-3 text-xs text-slate-500">
+                            <p className="truncate font-semibold text-slate-600">{checkpoint}</p>
+                            <p className="mt-0.5 text-[11px] text-slate-400">{checkpointTiming}</p>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {trackingDday !== null ? (
+                              <DDayBadge dDay={trackingDday} />
+                            ) : (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                                {reg.tracking?.next_event?.status === "uncertain" ? "시점 미정" : "예상"}
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}

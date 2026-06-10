@@ -26,6 +26,7 @@ class RegulationSummary(BaseModel):
     historyCount: int = Field(alias="historyCount")
     checkpointCount: int = Field(alias="checkpointCount")
     newsQueryCount: int = Field(alias="newsQueryCount")
+    tracking: dict[str, Any] = Field(default_factory=dict)
     officialMetadata: dict[str, Any] = Field(default_factory=dict, alias="officialMetadata")
     sourceName: str = Field(default="", alias="sourceName")
     sourceUrl: str = Field(default="", alias="sourceUrl")
@@ -49,6 +50,7 @@ class RegulationDetail(BaseModel):
     history: list[dict[str, Any]] = Field(default_factory=list)
     display: dict[str, Any]
     action_checkpoints: dict[str, list[str] | str] = Field(default_factory=dict)
+    tracking: dict[str, Any] = Field(default_factory=dict)
     korean_company_note: str = ""
     company_mapping: dict[str, Any] = Field(default_factory=dict)
     why_it_matters: str = ""

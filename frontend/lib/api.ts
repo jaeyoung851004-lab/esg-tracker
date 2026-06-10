@@ -3,9 +3,12 @@ import type {
   NewsFeedResponse,
   NewsItem,
   Regulation,
+  RegulationGovernanceType,
   RegulationOfficialMetadata,
   RegulationDetail,
   RegulationSummary,
+  RegulationTracking,
+  DelegatedActTrackerItem,
 } from "@/types/dashboard";
 import regulationsData from "../../data/regulations.json";
 import { emptyNewsFeed, fetchBackendNews } from "@/lib/news/googleNews";
@@ -15,6 +18,8 @@ type OldRegulation = {
   acronym?: string;
   name_ko?: string;
   name_en?: string;
+  summary_short?: string;
+  governance_type?: RegulationGovernanceType;
   category?: string;
   legal?: {
     legal_state?: string;
@@ -65,6 +70,8 @@ type OldRegulation = {
     priority?: string;
   };
   action_checkpoints?: Record<string, string | string[] | undefined>;
+  tracking?: RegulationTracking;
+  delegated_acts_tracker?: DelegatedActTrackerItem[];
   korean_company_note?: string;
   company_mapping?: {
     industries?: string[];
@@ -288,11 +295,14 @@ function convertRegulation(reg: OldRegulation): RegulationDetail {
     risk: getRisk(reg),
     priority: getPriority(reg),
     summary:
+      reg.summary_short ||
       reg.display?.card_summary ||
       reg.ai_layer?.situation_summary ||
       reg.why_it_matters ||
       reg.korean_company_note ||
       "상세 정보 점검이 필요합니다.",
+    summary_short: reg.summary_short,
+    governance_type: reg.governance_type,
     acronym: reg.acronym,
     name_ko: reg.name_ko,
     name_en: reg.name_en,
@@ -305,6 +315,8 @@ function convertRegulation(reg: OldRegulation): RegulationDetail {
     history: reg.history,
     display: reg.display ?? {},
     action_checkpoints: reg.action_checkpoints ?? {},
+    tracking: reg.tracking ?? {},
+    delegated_acts_tracker: reg.delegated_acts_tracker,
     korean_company_note: reg.korean_company_note,
     company_mapping: reg.company_mapping ?? {},
     why_it_matters: reg.why_it_matters,
@@ -357,6 +369,10 @@ export function summarizeRegulation(
 
 const fallbackRegulations: RegulationSummary[] =
   fallbackRegulationDetails.map(summarizeRegulation);
+
+export function getRegulationsSnapshot(): RegulationSummary[] {
+  return fallbackRegulations;
+}
 
 export async function getRegulations(): Promise<RegulationSummary[]> {
   return fallbackRegulations;
