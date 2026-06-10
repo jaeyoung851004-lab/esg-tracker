@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { label: "대시보드", href: "/", badge: null },
   { label: "규제 DB", href: "/regulations", badge: null },
-  { label: "뉴스 & 인사이트", href: "/news", badge: null },
   { label: "기업 진단", href: "/diagnosis", badge: null },
+  { label: "체크포인트", href: "/checkpoints", badge: null },
+  { label: "뉴스 & 인사이트", href: "/news", badge: null },
   { label: "설정", href: "/settings", badge: null },
 ];
 
