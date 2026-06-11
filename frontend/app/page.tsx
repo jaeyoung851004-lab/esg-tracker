@@ -7,168 +7,237 @@ import {
   REG_TRACKING,
   CHECKPOINTS,
   calcDDay,
+  type RegId,
 } from "@/data/regulation-db.mock";
 
-// ── 뉴스 fetch (대시보드용) ───────────────────────────────────────────────────
-function getApiBase() {
+const FOLLOWED_REG_IDS: RegId[] = ["espr", "cbam", "ai_act", "imo_nzf"];
+const followedIdSet = new Set<RegId>(FOLLOWED_REG_IDS);
+
+type RegMasterItem = (typeof REG_MASTER)[number];
+type RegTrackingItem = (typeof REG_TRACKING)[number];
+type FollowedReg = {
+  reg: RegMasterItem;
+  tracking?: RegTrackingItem;
+  dDay: number | null;
+};
+
+const riskToneClass = {
+  low: "border-slate-200 bg-slate-50 text-slate-600",
+  medium: "border-amber-200 bg-amber-50 text-amber-700",
+  high: "border-red-200 bg-red-50 text-red-700",
+};
+
+const marketSignals: {
+  regId: RegId;
+  actor: string;
+  reaction: string;
+  title: string;
+  source: string;
+  date: string;
+}[] = [
+  {
+    regId: "cbam",
+    actor: "수출 제조사",
+    reaction: "대응 준비",
+    title: "철강·알루미늄 공급망, 2027년 첫 CBAM 신고 전 검증 데이터 정비",
+    source: "산업/자문",
+    date: "2026-06-10",
+  },
+  {
+    regId: "espr",
+    actor: "제조업계",
+    reaction: "요건 분석",
+    title: "ESPR 우선 제품군 위임법 공개 전 제품 데이터 체계 점검 확대",
+    source: "EU 시장",
+    date: "2026-06-09",
+  },
+  {
+    regId: "ai_act",
+    actor: "기술 공급사",
+    reaction: "컴플라이언스",
+    title: "고위험 AI 분류 가능 업무부터 기술문서·인간 감독 체계 선점",
+    source: "로펌/컨설팅",
+    date: "2026-06-07",
+  },
+];
+
+function codeBadge(reg?: RegMasterItem) {
   return (
-    process.env.ESG_TRACKER_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_ESG_TRACKER_API_BASE_URL ||
-    "http://127.0.0.1:8000"
+    <span className="shrink-0 rounded bg-brand-600 px-2 py-0.5 text-[11px] font-black text-white">
+      {reg?.acronym ?? "-"}
+    </span>
   );
 }
 
-async function getDashboardNews() {
-  try {
-    const res = await fetch(`${getApiBase()}/api/news?limit=20`, { cache: "no-store" });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const items = data.items || [];
-    return items
-      .sort((a: any, b: any) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0))
-      .slice(0, 6);
-  } catch {
-    return [];
-  }
-}
-
-async function getNewsTotalCount(): Promise<number> {
-  try {
-    const res = await fetch(`${getApiBase()}/api/news?limit=200`, { cache: "no-store" });
-    if (!res.ok) return 0;
-    const data = await res.json();
-    return (data.items || []).length;
-  } catch {
-    return 0;
-  }
-}
-
-// ── 헬퍼 ─────────────────────────────────────────────────────────────────────
-
-function formatDate(dateStr?: string) {
-  if (!dateStr) return "";
-  try {
-    return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" }).format(new Date(dateStr));
-  } catch {
-    return "";
-  }
-}
-
-const CODE_COLORS: Record<string, string> = {
-  ESPR: "bg-teal-600",
-  CBAM: "bg-violet-600",
-  "AI Act": "bg-indigo-600",
-  "IMO NZF": "bg-cyan-800",
-};
-
-function codeColor(acronym: string) {
-  return CODE_COLORS[acronym] ?? "bg-slate-600";
-}
-
 function DDayBadge({ dDay }: { dDay: number | null }) {
-  if (dDay === null) return <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-500">예상</span>;
-  if (dDay < 0) return <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-500">시행 중</span>;
-  if (dDay <= 90) return <span className="rounded-full bg-red-50 px-2 py-0.5 font-mono text-[11px] font-bold text-red-600">D-{dDay}</span>;
-  return <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-500">D-{dDay}</span>;
+  if (dDay === null) {
+    return (
+      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-500">
+        예상
+      </span>
+    );
+  }
+  if (dDay < 0) {
+    return (
+      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-500">
+        시행 중
+      </span>
+    );
+  }
+  if (dDay <= 90) {
+    return (
+      <span className="rounded-full bg-red-50 px-2 py-0.5 font-mono text-[11px] font-bold text-red-600">
+        D-{dDay}
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-brand-50 px-2 py-0.5 font-mono text-[11px] font-bold text-brand-700">
+      D-{dDay}
+    </span>
+  );
 }
 
-// ── 메인 페이지 ───────────────────────────────────────────────────────────────
+export default function WatchlistHomePage() {
+  const followedRegs = FOLLOWED_REG_IDS.reduce<FollowedReg[]>((items, id) => {
+    const reg = REG_MASTER.find((item) => item.id === id);
+    if (!reg) return items;
+    const tracking = REG_TRACKING.find((item) => item.regulation_id === id);
+    items.push({
+      reg,
+      tracking,
+      dDay: calcDDay(tracking?.next_event_date_iso ?? null),
+    });
+    return items;
+  }, []);
 
-export default async function DashboardPage() {
-  const [latestNews, totalNewsCount] = await Promise.all([
-    getDashboardNews(),
-    getNewsTotalCount(),
-  ]);
+  const urgentCheckpoints = CHECKPOINTS.filter(
+    (item) =>
+      followedIdSet.has(item.regulation_id) &&
+      item.phase === "지금" &&
+      item.priority === "high"
+  );
+  const within90 = followedRegs.filter(
+    (item) => item.dDay !== null && item.dDay >= 0 && item.dDay <= 90
+  );
+  const recentChangeCount = followedRegs.filter((item) => item.tracking).length;
+  const nowCheckpoints = CHECKPOINTS.filter(
+    (item) => followedIdSet.has(item.regulation_id) && item.phase === "지금"
+  ).slice(0, 4);
 
-  const today = new Date().toLocaleDateString("ko-KR", {
-    year: "numeric", month: "long", day: "numeric",
+  const upcomingEvents = [...followedRegs].sort((a, b) => {
+    const left = a.dDay ?? 9999;
+    const right = b.dDay ?? 9999;
+    return left - right;
   });
-
-  // 규제별 D-day 계산
-  const regWithDDay = REG_MASTER.map((reg) => {
-    const tracking = REG_TRACKING.find((t) => t.regulation_id === reg.id);
-    const dDay = calcDDay(tracking?.next_event_date_iso ?? null);
-    return { reg, tracking, dDay };
-  });
-
-  // D-day 순 정렬
-  const upcomingEvents = [...regWithDDay].sort((a, b) => {
-    const da = a.dDay ?? 9999;
-    const db = b.dDay ?? 9999;
-    return da - db;
-  });
-
-  // 지금 단계 체크포인트 (최대 3개)
-  const nowCheckpoints = CHECKPOINTS.filter((c) => c.phase === "지금").slice(0, 3);
-
-  // 긴급 카운트 (D-90 이내)
-  const urgentCount = regWithDDay.filter((r) => r.dDay !== null && r.dDay >= 0 && r.dDay <= 90).length;
-  const within90 = urgentCount;
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc]">
+    <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
       <div className="min-w-0 flex-1">
         <Topbar />
-        <div className="mx-auto max-w-[1200px] space-y-6 p-6">
-
-          {/* 헤더 */}
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emeraldBrand">
-              Impact ON ESG Regulation Intelligence
-            </p>
-            <h1 className="mt-1 text-2xl font-black text-navy">오늘의 규제 브리핑</h1>
-            <p className="mt-0.5 text-sm text-slate-400">{today} · 모니터링 규제 {REG_MASTER.length}개 기준</p>
+        <main className="mx-auto max-w-[1180px] space-y-6 p-6">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-600">
+                Impact ON ESG Regulation Intelligence
+              </p>
+              <h1 className="mt-1 text-2xl font-black text-ink-900">관심 규제</h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Impact ON Co. 조건에 맞춰 팔로우 중인 규제와 이번 주 액션을 확인합니다.
+              </p>
+            </div>
+            <a
+              href="/settings"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:border-brand-600 hover:text-brand-700"
+            >
+              관심 규제 관리
+            </a>
           </div>
 
-          {/* 상단 4개 지표 */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { label: "긴급 대응 필요", value: urgentCount, unit: "건", sub: "D-90 이내 규제", color: "text-red-600", bg: "bg-red-50", border: "border-red-100" },
-              { label: "90일 내 일정", value: within90, unit: "건", sub: "확정 기한 기준", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
-              { label: "최근 30일 뉴스", value: totalNewsCount > 0 ? `${totalNewsCount}` : "—", unit: "건", sub: "Google News RSS 수집", color: "text-emeraldBrand", bg: "bg-white", border: "border-slate-200" },
-              { label: "모니터링 규제", value: REG_MASTER.length, unit: "개", sub: "ESPR · CBAM · AI Act · IMO NZF", color: "text-navy", bg: "bg-white", border: "border-slate-200" },
+              {
+                label: "긴급 대응 필요",
+                value: urgentCheckpoints.length,
+                unit: "건",
+                sub: "지금 단계 · 우선순위 높음",
+                tone: "text-red-600",
+              },
+              {
+                label: "90일 내 일정",
+                value: within90.length,
+                unit: "건",
+                sub: "확정일 기준",
+                tone: "text-amber-600",
+              },
+              {
+                label: "최근 변경",
+                value: recentChangeCount,
+                unit: "건",
+                sub: "REG_TRACKING 업데이트 기준",
+                tone: "text-brand-700",
+              },
+              {
+                label: "팔로우 규제",
+                value: followedRegs.length,
+                unit: "개",
+                sub: followedRegs.map((item) => item.reg.acronym).join(" · "),
+                tone: "text-ink-900",
+              },
             ].map((card) => (
-              <div key={card.label} className={`rounded-xl border ${card.border} ${card.bg} p-5 shadow-sm`}>
-                <p className="text-xs font-bold text-slate-400">{card.label}</p>
-                <p className={`mt-2 text-3xl font-black ${card.color}`}>
-                  {card.value}<span className="ml-0.5 text-base font-bold">{card.unit}</span>
+              <div
+                key={card.label}
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-none"
+              >
+                <p className="text-xs font-bold text-slate-500">{card.label}</p>
+                <p className={`mt-2 text-3xl font-black ${card.tone}`}>
+                  {card.value}
+                  <span className="ml-0.5 text-sm font-bold">{card.unit}</span>
                 </p>
-                <p className="mt-1 text-[11px] text-slate-400">{card.sub}</p>
+                <p className="mt-1 truncate text-[11px] text-slate-400">{card.sub}</p>
               </div>
             ))}
-          </div>
+          </section>
 
-          {/* 이번 주 확인해야 할 것 + 지금 체크포인트 */}
-          <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-
-            {/* 규제 이벤트 카드 */}
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <section className="grid gap-5 lg:grid-cols-[1fr_360px]">
+            <div className="rounded-xl border border-slate-200 bg-white shadow-none">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <div>
-                  <h2 className="text-sm font-black text-navy">이번 주 확인해야 할 것</h2>
-                  <p className="mt-0.5 text-xs text-slate-400">모니터링 규제 4개 기준 · D-day 순</p>
+                  <h2 className="text-sm font-black text-ink-900">이번 주 확인해야 할 것</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    팔로우 규제의 다음 이벤트와 담당 부서 기준
+                  </p>
                 </div>
-                <a href="/regulations" className="text-xs font-bold text-emeraldBrand hover:underline">규제 DB 보기 →</a>
+                <a href="/changes" className="text-xs font-bold text-brand-700 hover:underline">
+                  변경사항 보기
+                </a>
               </div>
-              <div className="divide-y divide-slate-50">
+              <div className="divide-y divide-slate-100">
                 {upcomingEvents.map(({ reg, tracking, dDay }) => (
                   <a
                     key={reg.id}
                     href={`/regulations/${reg.id}`}
-                    className="flex items-start gap-4 px-5 py-4 transition hover:bg-slate-50"
+                    className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 md:grid-cols-[70px_72px_1fr_110px]"
                   >
-                    <div className="mt-0.5 min-w-[52px] text-right">
+                    <div>
                       <DDayBadge dDay={dDay} />
                     </div>
-                    <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(reg.acronym)}`}>
-                      {reg.acronym}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-navy">{tracking?.next_event_label ?? "다음 이벤트 확인 필요"}</p>
-                      <p className="mt-0.5 text-xs text-slate-500 truncate">{tracking?.business_action_now ?? ""}</p>
-                      <p className="mt-0.5 text-[11px] text-slate-400">
-                        {tracking?.next_event_expected_date}
+                    <div>{codeBadge(reg)}</div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-ink-900">
+                        {tracking?.next_event_label ?? "다음 이벤트 확인 필요"}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                        {tracking?.business_action_now ?? reg.why_it_matters}
+                      </p>
+                    </div>
+                    <div className="text-left md:text-right">
+                      <p className="text-xs font-bold text-slate-600">
+                        {tracking?.next_event_expected_date ?? "미정"}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {tracking?.current_stage_owner ?? reg.enforcing_body}
                       </p>
                     </div>
                   </a>
@@ -176,118 +245,115 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            {/* 지금 체크포인트 */}
-            <div className="overflow-hidden rounded-xl border border-red-100 bg-red-50 shadow-sm">
-              <div className="flex items-center justify-between border-b border-red-100 px-5 py-4">
-                <div>
-                  <h2 className="text-sm font-black text-red-700">지금 해야 할 일</h2>
-                  <p className="mt-0.5 text-xs text-red-400">즉시 착수 필요 체크포인트</p>
-                </div>
-                <a href="/checkpoints" className="text-xs font-bold text-red-600 hover:underline">전체 보기 →</a>
+            <div className="rounded-xl border border-slate-200 bg-white shadow-none">
+              <div className="border-b border-slate-100 px-5 py-4">
+                <h2 className="text-sm font-black text-ink-900">지금 해야 할 일</h2>
+                <p className="mt-0.5 text-xs text-slate-500">체크포인트 중 즉시 착수 항목</p>
               </div>
-              <div className="divide-y divide-red-100">
-                {nowCheckpoints.map((cp) => {
-                  const reg = REG_MASTER.find((r) => r.id === cp.regulation_id);
+              <div className="divide-y divide-slate-100">
+                {nowCheckpoints.map((checkpoint) => {
+                  const reg = REG_MASTER.find((item) => item.id === checkpoint.regulation_id);
                   return (
-                    <div key={cp.checkpoint_id} className="flex items-start gap-3 px-5 py-3.5 bg-white/50">
-                      <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(reg?.acronym ?? "")}`}>
-                        {reg?.acronym}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-navy leading-snug">{cp.action}</p>
-                        <p className="mt-0.5 text-[11px] text-slate-500">{cp.target_function.join(", ")}</p>
-                        {cp.notes && (
-                          <p className="mt-0.5 text-[11px] text-red-600 font-bold">{cp.notes}</p>
-                        )}
+                    <div key={checkpoint.checkpoint_id} className="px-5 py-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        {codeBadge(reg)}
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            checkpoint.priority === "high"
+                              ? "bg-red-50 text-red-600"
+                              : "bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          {checkpoint.priority === "high" ? "긴급" : "준비"}
+                        </span>
                       </div>
+                      <p className="text-sm font-bold leading-snug text-ink-900">
+                        {checkpoint.action}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {checkpoint.target_function.join(", ")}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="border-t border-slate-100 px-5 py-3">
+                <a href="/checkpoints" className="text-xs font-bold text-brand-700 hover:underline">
+                  전체 체크포인트 보기
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-5 lg:grid-cols-[1fr_360px]">
+            <div className="rounded-xl border border-slate-200 bg-white shadow-none">
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h2 className="text-sm font-black text-ink-900">최근 시장 반응</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    규제별 반응 유형을 뉴스 목록이 아닌 신호로 요약합니다.
+                  </p>
+                </div>
+                <a href="/market" className="text-xs font-bold text-brand-700 hover:underline">
+                  시장 반응 보기
+                </a>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {marketSignals.map((signal) => {
+                  const reg = REG_MASTER.find((item) => item.id === signal.regId);
+                  return (
+                    <div key={`${signal.regId}-${signal.title}`} className="px-5 py-4">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        {codeBadge(reg)}
+                        <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                          {signal.reaction}
+                        </span>
+                        <span className="text-[11px] text-slate-400">{signal.date}</span>
+                      </div>
+                      <p className="text-sm font-bold text-ink-900">{signal.title}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {signal.actor} · {signal.source}
+                      </p>
                     </div>
                   );
                 })}
               </div>
             </div>
-          </div>
 
-          {/* 규제 현황 카드 4개 */}
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-black text-navy">모니터링 규제 현황</h2>
-              <a href="/regulations" className="text-xs font-bold text-emeraldBrand hover:underline">전체 보기 →</a>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {regWithDDay.map(({ reg, tracking, dDay }) => (
-                <a
-                  key={reg.id}
-                  href={`/regulations/${reg.id}`}
-                  className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-emeraldBrand hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <span className={`rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(reg.acronym)}`}>
-                      {reg.acronym}
-                    </span>
-                    <DDayBadge dDay={dDay} />
-                  </div>
-                  <p className="text-sm font-black text-navy leading-snug">{reg.name_ko}</p>
-                  <p className="mt-1 text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{reg.summary_short}</p>
-                  <div className="mt-3 pt-3 border-t border-slate-100">
-                    <p className="text-[11px] font-bold text-slate-600 line-clamp-1">{tracking?.current_stage_label}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-400 truncate">{tracking?.next_event_label}</p>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
-
-          {/* 주요 최신 뉴스 */}
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <div>
-                <h2 className="text-sm font-black text-navy">주요 최신 뉴스</h2>
-                <p className="mt-0.5 text-xs text-slate-400">Google News RSS · 규제, 지역, 반응 유형 태그 포함</p>
-              </div>
-              <a href="/news" className="text-xs font-bold text-emeraldBrand hover:underline">전체 보기 →</a>
-            </div>
-
-            {latestNews.length === 0 ? (
-              <div className="px-5 py-8 text-center text-sm text-slate-400">
-                뉴스를 불러오는 중이거나 수집된 기사가 없습니다.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {latestNews.map((item: any, idx: number) => {
-                  const title = item.titleKo || item.title || item.originalTitle || "제목 없음";
-                  const code = item.relatedRegulationNames?.[0] || item.regulationId?.toUpperCase() || "";
-                  const date = formatDate(item.publishedAt);
-                  return (
-                    <a
-                      key={`${item.url}-${idx}`}
-                      href={item.url || "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-4 px-5 py-3.5 hover:bg-slate-50"
-                    >
-                      <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(code)}`}>
-                        {code || "—"}
-                      </span>
-                      <span className="flex-1 text-sm font-medium leading-snug text-navy hover:text-emeraldBrand">
-                        {title}
-                      </span>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        {item.sourceRegion && (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">{item.sourceRegion}</span>
-                        )}
-                        {item.newsType && (
-                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{item.newsType}</span>
-                        )}
-                        {date && <span className="text-[10px] text-slate-400">{date}</span>}
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-none">
+              <h2 className="text-sm font-black text-ink-900">팔로우 규제 상태</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                일정 리스크가 바뀌면 홈과 최근 변경사항에 함께 반영됩니다.
+              </p>
+              <div className="mt-4 space-y-3">
+                {followedRegs.map(({ reg, tracking }) => (
+                  <a
+                    key={reg.id}
+                    href={`/regulations/${reg.id}`}
+                    className="block rounded-xl border border-slate-200 bg-white p-3 hover:border-brand-600"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {codeBadge(reg)}
+                        <p className="truncate text-sm font-black text-ink-900">{reg.name_ko}</p>
                       </div>
-                    </a>
-                  );
-                })}
+                      <span
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                          riskToneClass[tracking?.schedule_risk_level ?? "medium"]
+                        }`}
+                      >
+                        리스크 {tracking?.schedule_risk_level === "high" ? "높음" : tracking?.schedule_risk_level === "low" ? "낮음" : "중간"}
+                      </span>
+                    </div>
+                    <p className="mt-2 line-clamp-1 text-xs text-slate-500">
+                      {tracking?.current_stage_label ?? reg.status_label}
+                    </p>
+                  </a>
+                ))}
               </div>
-            )}
-          </div>
-
-        </div>
+            </div>
+          </section>
+        </main>
       </div>
     </div>
   );

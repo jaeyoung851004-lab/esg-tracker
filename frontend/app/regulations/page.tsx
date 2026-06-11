@@ -13,18 +13,18 @@ import {
 } from "@/data/regulation-db.mock";
 
 const CODE_COLORS: Record<string, string> = {
-  ESPR: "bg-teal-600",
-  CBAM: "bg-violet-600",
-  "AI Act": "bg-indigo-600",
-  "IMO NZF": "bg-cyan-800",
+  ESPR: "bg-brand-600",
+  CBAM: "bg-brand-600",
+  "AI Act": "bg-brand-600",
+  "IMO NZF": "bg-brand-600",
 };
 
 const STATUS_STYLE: Record<string, string> = {
-  success: "bg-green-50 text-green-700 border-green-200",
-  info: "bg-blue-50 text-blue-700 border-blue-200",
+  success: "bg-brand-50 text-brand-700 border-brand-100",
+  info: "bg-brand-50 text-brand-700 border-brand-100",
   warning: "bg-amber-50 text-amber-700 border-amber-200",
   danger: "bg-red-50 text-red-700 border-red-200",
-  uncertain: "bg-orange-50 text-orange-700 border-orange-200",
+  uncertain: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 const CATEGORY_FILTERS = ["전체", "순환경제", "탄소·기후", "AI·디지털", "해운·물류"];
@@ -71,12 +71,12 @@ export default function RegulationsPage() {
 
           {/* 헤더 */}
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emeraldBrand">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-600">
               Impact ON ESG Regulation Intelligence
             </p>
-            <h1 className="mt-1 text-2xl font-black text-navy">규제 DB</h1>
+            <h1 className="mt-1 text-2xl font-black text-ink-900">규제 라이브러리</h1>
             <p className="mt-1 text-sm text-slate-400">
-              규제의 현재 단계, 다음 이벤트, 적용 범위, 체크포인트를 빠르게 확인합니다.
+              전체 규제를 검색하고 적용 범위, 현재 단계, 다음 이벤트를 확인합니다.
             </p>
           </div>
 
@@ -90,15 +90,15 @@ export default function RegulationsPage() {
                   onClick={() => setCategory(cat)}
                   className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                     category === cat
-                      ? "border-navy bg-navy text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-emeraldBrand hover:text-emeraldBrand"
+                      ? "border-brand-600 bg-brand-50 text-brand-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-brand-600 hover:text-brand-700"
                   }`}
                 >
                   {cat}
                 </button>
               ))}
             </div>
-            <div className="flex flex-1 max-w-xs items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="flex flex-1 max-w-xs items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-none">
               <span className="text-xs text-slate-400">검색</span>
               <input
                 type="text"
@@ -122,7 +122,7 @@ export default function RegulationsPage() {
                 <a
                   key={reg.id}
                   href={`/regulations/${reg.id}`}
-                  className="block rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emeraldBrand hover:shadow-md"
+                  className="block rounded-xl border border-slate-200 bg-white p-5 shadow-none transition hover:border-brand-600"
                 >
                   {/* 상단 헤더 */}
                   <div className="flex items-start justify-between gap-3 mb-3">
@@ -135,7 +135,7 @@ export default function RegulationsPage() {
                     <DDayBadge dDay={dDay} />
                   </div>
 
-                  <h3 className="text-base font-black text-navy leading-snug">{reg.name_ko}</h3>
+                  <h3 className="text-base font-black text-ink-900 leading-snug">{reg.name_ko}</h3>
                   <p className="mt-1 text-xs text-slate-400">{reg.name_en}</p>
                   <p className="mt-2 text-xs leading-relaxed text-slate-600 line-clamp-2">{reg.summary_short}</p>
 
@@ -143,12 +143,12 @@ export default function RegulationsPage() {
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <div className="rounded-lg bg-slate-50 px-3 py-2">
                       <p className="text-[10px] text-slate-400 mb-0.5">현재 단계</p>
-                      <p className="text-xs font-bold text-navy leading-snug line-clamp-2">{tracking?.current_stage_label}</p>
+                      <p className="text-xs font-bold text-ink-900 leading-snug line-clamp-2">{tracking?.current_stage_label}</p>
                       <p className="mt-0.5 text-[10px] text-slate-400 truncate">{tracking?.current_stage_owner}</p>
                     </div>
                     <div className="rounded-lg bg-slate-50 px-3 py-2">
                       <p className="text-[10px] text-slate-400 mb-0.5">다음 이벤트</p>
-                      <p className="text-xs font-bold text-navy leading-snug line-clamp-2">{tracking?.next_event_label}</p>
+                      <p className="text-xs font-bold text-ink-900 leading-snug line-clamp-2">{tracking?.next_event_label}</p>
                       <p className="mt-0.5 text-[10px] text-slate-400">{tracking?.next_event_expected_date}</p>
                     </div>
                   </div>
@@ -174,7 +174,7 @@ export default function RegulationsPage() {
                           <span className="w-24 shrink-0 text-[10px] text-slate-500 truncate">{u.unit_label}</span>
                           <div className="flex-1 overflow-hidden rounded-full bg-slate-100 h-1.5">
                             <div
-                              className="h-full rounded-full bg-emeraldBrand"
+                              className="h-full rounded-full bg-brand-600"
                               style={{ width: `${stageProgress(u.stage_status)}%` }}
                             />
                           </div>
@@ -188,7 +188,7 @@ export default function RegulationsPage() {
                     <span className={`inline-block rounded-md border px-2 py-0.5 text-[11px] font-bold ${STATUS_STYLE[reg.status_tone]}`}>
                       {reg.status_label}
                     </span>
-                    <span className="text-xs font-bold text-emeraldBrand">상세 보기 →</span>
+                    <span className="text-xs font-bold text-brand-700">상세 보기 →</span>
                   </div>
                 </a>
               );
