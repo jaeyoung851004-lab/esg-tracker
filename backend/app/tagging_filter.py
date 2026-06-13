@@ -12,13 +12,21 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .intelligence_db import RawArticle
 
-# ── 노이즈 배제 키워드 (주식/투자 보도 Skip) ─────────────────────────────
+# ── 노이즈 배제 키워드 (순수 주식/투자 스팸만 차단, 단어 경계 엄격 적용) ──────
+# 주의: "shares" 단독 사용 시 "carbon shares", "shared analysis" 오차단 발생
+# → 복합어 또는 완전 표현만 사용
 NOISE_KEYWORDS: list[str] = [
-    "stock", "shares", "nasdaq", "earnings", "share price",
-    "market analysis", "market forecast", "generic product market report",
-    "shareholder alert", "class action", "openpr",
-    "stock market", "stock price", "quarterly results",
-    "ipo ", "initial public offering",
+    "shareholder alert",
+    "class action lawsuit",
+    "openpr.com",
+    "initial public offering",
+    "quarterly earnings report",
+    "stock market rally",
+    "share price target",
+    "nasdaq listed",
+    "nyse listed",
+    "generic product market report",
+    "press release financial results",
 ]
 
 # ── 세로축: 15대 마스터 규제 정밀 키워드 사전 ────────────────────────────
@@ -142,36 +150,7 @@ REGULATION_KEYWORDS: dict[str, list[str]] = {
         # 한글
         "지속가능금융공시", "지속가능 금융 공시", "esg 펀드 공시",
     ],
-    "KSSB": [
-        "kssb", "korean sustainability standards board",
-        "korean sustainability reporting",
-        "k-sustainability",
-        "korea esg disclosure",
-        # 한글
-        "한국 지속가능성 기준", "국내 지속가능성 보고", "한국 esg 공시", "kssb",
-    ],
-    "RE100": [
-        "re100", "renewable energy 100",
-        "100% renewable", "100 percent renewable",
-        "corporate renewable energy",
-        "ppa renewable", "power purchase agreement renewable",
-        "clean energy commitment",
-        # 한글
-        "재생에너지 100", "re100 달성", "재생에너지 전환", "재생에너지 100%",
-    ],
-    "Carbon Cost Policy": [
-        "carbon tax", "carbon pricing",
-        "carbon cost", "carbon levy",
-        "emissions trading", " ets ", "eu ets",
-        "carbon market", "net zero policy",
-        "carbon neutral policy", "decarbonization policy",
-        "climate policy", "carbon credit",
-        "carbon offset", "greenhouse gas policy",
-        # 한글
-        "탄소세", "탄소가격", "탄소배출권",
-        "배출권거래", "탄소중립 정책",
-    ],
-    # ── 신규 3종 규제 (2026 우선순위) ────────────────────────────────────
+    # ── 신규 2종 규제 (2026 우선순위 — RE100/KSSB/Carbon Cost Policy 제거됨) ──
     "CA_Climate": [
         "california climate", "california ab 1305", "california sb 253", "california sb 261",
         "california climate accountability", "california climate disclosure",
@@ -308,9 +287,12 @@ def passes_noise_filter(title: str, excerpt: str) -> bool:
 
 
 def passes_keyword_filter(title: str, excerpt: str) -> bool:
-    """제목·본문 중 하나라도 매트릭스 키워드를 포함하면 True."""
-    combined = f"{title} {excerpt}"
-    return _has_any_keyword(combined, _ALL_FLAT)
+    """
+    수집 단계에서 ESG 쿼리로 가져온 기사는 전량 태깅 대상으로 허용한다.
+    (구 시스템의 '넓은 수집' 원칙 복원 — 버리지 않고 분류만 부여)
+    노이즈 필터(passes_noise_filter)만으로 스팸을 걸러내면 충분하다.
+    """
+    return True
 
 
 # 신규 규제 1.5배 가중치 (2026 우선순위 지정 규제)
@@ -365,9 +347,6 @@ REGULATION_CONTEXT_KEYWORDS: dict[str, list[str]] = {
     "DPP": ["product passport", "digital passport", "traceabilit", "여권", "디지털 제품"],
     "ELV": ["end-of-life", "vehicle", "recycling", "scrap", "폐차", "자동차 재활용"],
     "SFDR": ["sustainable finance", "disclosure", "fund", "pai", "article 8", "article 9", "펀드", "공시"],
-    "KSSB": ["sustainability", "reporting", "korea", "standard", "한국", "공시"],
-    "RE100": ["renewable energy", "re100", "clean energy", "ppa", "재생에너지"],
-    "Carbon Cost Policy": ["carbon", "emission", "climate", "ets", "탄소", "배출"],
     "CA_Climate": ["california", "ab 1305", "sb 253", "sb 261", "sec climate", "carb", "캘리포니아", "sec"],
     "IMO_Reg": ["imo", "maritime", "shipping", "vessel", "seafarer", "해운", "선박", "국제해사"],
 }

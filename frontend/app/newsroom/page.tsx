@@ -32,11 +32,10 @@ const REG_COLORS: Record<string, { bg: string; color: string }> = {
   GCD:                  { bg: "rgba(132,204,22,0.15)",  color: "#a3e635" },
   "AI Act":             { bg: "rgba(99,102,241,0.15)",  color: "#818cf8" },
   DPP:                  { bg: "rgba(217,70,239,0.15)",  color: "#e879f9" },
-  ELV:                  { bg: "rgba(236,72,153,0.15)",  color: "#f472b6" },
-  SFDR:                 { bg: "rgba(34,197,94,0.15)",   color: "#4ade80" },
-  KSSB:                 { bg: "rgba(168,85,247,0.15)",  color: "#c084fc" },
-  RE100:                { bg: "rgba(251,191,36,0.15)",  color: "#fbbf24" },
-  "Carbon Cost Policy": { bg: "rgba(239,68,68,0.15)",   color: "#f87171" },
+  ELV:        { bg: "rgba(236,72,153,0.15)",  color: "#f472b6" },
+  SFDR:       { bg: "rgba(34,197,94,0.15)",   color: "#4ade80" },
+  CA_Climate: { bg: "rgba(251,191,36,0.15)",  color: "#fbbf24" },
+  IMO_Reg:    { bg: "rgba(20,184,166,0.15)",  color: "#2dd4bf" },
 };
 
 const ST_BADGE: Record<string, { bg: string; color: string }> = {
