@@ -28,18 +28,16 @@ def _crawl_once() -> None:
     """모든 규제 쿼리를 순회하며 raw_articles 를 적재한다."""
     try:
         from .data import load_regulations as _load
-        from .news import fetch_articles_by_query
-        from .intelligence_db import upsert_raw_article
+        from .news import fetch_google_news
 
         regulations = _load()
         total = 0
         for reg in regulations:
             for query in (reg.get("search_queries") or []):
-                articles = fetch_articles_by_query(query, max_results=50)
-                for art in articles:
-                    upsert_raw_article(art)
-                    total += 1
-        logger.info("[scheduler] crawl_once 완료 — %d건 처리", total)
+                articles = fetch_google_news(query)
+                total += len(articles)
+                # fetch_google_news 내부에서 upsert_raw_article 자동 호출됨
+        logger.info("[scheduler] crawl_once 완료 — %d건 수집", total)
     except Exception:
         logger.exception("[scheduler] crawl_once 실패")
 
@@ -54,20 +52,36 @@ def _run_pipeline() -> None:
         logger.exception("[scheduler] run_pipeline 실패")
 
 
-def _bootstrap_reprocess() -> None:
+def _bootstrap_crawl_and_process() -> None:
     """
     서버 기동 후 백그라운드 스레드에서 1회만 실행.
-    기존 잘못 태깅된 tagged_articles를 전량 삭제하고
-    DeepL 번역 + 키워드 태깅 파이프라인으로 재가공한다.
+    - raw_articles == 0 이면 즉시 크롤링 강제 실행 (10분 딜레이 없음)
+    - 크롤링 완료 후 DeepL 번역 + 키워드 태깅 파이프라인으로 재가공
     FastAPI 워커 쓰레드와 완전 격리 — 이 함수는 반드시 별도 Thread에서만 호출.
     """
     try:
+        from .intelligence_db import RawArticle, _engine
+        from sqlalchemy.orm import Session
+        from sqlalchemy import func
+
+        with Session(_engine) as s:
+            raw_count = s.query(func.count(RawArticle.id)).scalar()
+
+        if raw_count == 0:
+            logger.info("[bootstrap] DB 비어있음(0건) — 즉시 크롤링 강제 실행")
+            _crawl_once()
+            with Session(_engine) as s:
+                raw_count = s.query(func.count(RawArticle.id)).scalar()
+            logger.info("[bootstrap] 크롤링 완료 — raw_articles: %d건", raw_count)
+        else:
+            logger.info("[bootstrap] 기존 데이터 %d건 — 크롤링 스킵, 재태깅만 실행", raw_count)
+
         from .intelligence_pipeline import reprocess_all
-        logger.info("[bootstrap] 1,389건 전량 재가공 시작 (백그라운드)")
+        logger.info("[bootstrap] 태깅 파이프라인 시작")
         saved = reprocess_all()
         logger.info("[bootstrap] 재가공 완료 — %d건 tagged_articles 저장", saved)
     except Exception:
-        logger.exception("[bootstrap] 재가공 실패")
+        logger.exception("[bootstrap] 크롤링+재가공 실패")
 
 
 @asynccontextmanager
@@ -81,40 +95,41 @@ async def lifespan(app: FastAPI):
     # 서버 기동 직후 크롤/파이프라인이 즉시 실행돼 API 워커를 마비시키는 현상을 방지한다.
     # next_run_time을 명시해 첫 실행을 10분/20분 뒤로 미루고, 이후 1시간 간격으로 반복한다.
     now = datetime.now()
+    # Bootstrap 스레드가 즉시 크롤링을 처리하므로 스케줄러 첫 실행은 1시간 후로 미룬다
     scheduler.add_job(
         _crawl_once,
         IntervalTrigger(hours=1),
         id="crawl",
-        next_run_time=now + timedelta(minutes=10),
+        next_run_time=now + timedelta(hours=1),
         replace_existing=True,
     )
     scheduler.add_job(
         _run_pipeline,
         IntervalTrigger(hours=1),
         id="pipeline",
-        next_run_time=now + timedelta(minutes=20),
+        next_run_time=now + timedelta(hours=1, minutes=10),
         replace_existing=True,
     )
     scheduler.start()
     logger.info(
-        "[scheduler] APScheduler 시작 — crawl 첫 실행 T+10m, pipeline T+20m, 이후 1h 간격"
+        "[scheduler] APScheduler 시작 — crawl/pipeline 첫 실행 T+1h, 이후 1h 간격"
     )
 
-    # 기존 1,389건 전량 재가공 — FastAPI 워커와 완전 격리된 데몬 스레드로 즉시 실행
-    reprocess_thread = threading.Thread(
-        target=_bootstrap_reprocess,
-        name="reprocess-all",
+    # DB 비어있으면 즉시 크롤링 + 재가공 — FastAPI 워커와 완전 격리된 데몬 스레드
+    bootstrap_thread = threading.Thread(
+        target=_bootstrap_crawl_and_process,
+        name="bootstrap-crawl-process",
         daemon=True,
     )
-    reprocess_thread.start()
-    logger.info("[bootstrap] 재가공 스레드 시작 (daemon, 비차단)")
+    bootstrap_thread.start()
+    logger.info("[bootstrap] 크롤링+재가공 스레드 시작 (daemon, 비차단)")
 
     yield
     scheduler.shutdown(wait=False)
     logger.info("[scheduler] APScheduler 종료")
 
 
-app = FastAPI(title="Impact ON ESG Tracker API", version="0.1.1", lifespan=lifespan)
+app = FastAPI(title="Impact ON ESG Tracker API", version="0.1.2", lifespan=lifespan)
 
 # CORS — 환경변수로 추가 origin 지정 가능
 _extra = os.getenv("ALLOWED_ORIGINS", "")
