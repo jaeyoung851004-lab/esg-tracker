@@ -35,6 +35,155 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+# ── 저장 전 Relevance Gate ────────────────────────────────────────────────
+# 소스는 제거하지 않는다. 대신 기사 텍스트가 규제/의무/산업 맥락을 갖춘 경우만
+# raw_articles에 저장해 매트릭스용 DB 오염을 줄인다.
+REGULATION_DIRECT_KEYWORDS_BY_ID: dict[str, list[str]] = {
+    "espr": [
+        "espr", "ecodesign for sustainable products regulation",
+        "ecodesign regulation", "sustainable products regulation",
+    ],
+    "ppwr": [
+        "ppwr", "packaging and packaging waste regulation",
+        "packaging waste regulation", "packaging regulation",
+    ],
+    "csddd": [
+        "csddd", "cs3d", "corporate sustainability due diligence directive",
+        "sustainability due diligence directive", "due diligence directive",
+    ],
+    "csrd": [
+        "csrd", "esrs", "corporate sustainability reporting directive",
+        "sustainability reporting directive",
+        "european sustainability reporting standards",
+    ],
+    "cbam": [
+        "cbam", "carbon border adjustment mechanism",
+        "carbon border adjustment", "carbon border tax",
+    ],
+    "eudr": [
+        "eudr", "eu deforestation regulation",
+        "deforestation regulation",
+    ],
+    "green_claims": [
+        "green claims directive", "green claims regulation",
+        "greenwashing directive", "environmental claims directive",
+    ],
+    "eu_ai_act": [
+        "eu ai act", "ai act", "artificial intelligence act",
+        "eu artificial intelligence act",
+    ],
+    "battery_reg": [
+        "eu battery regulation", "battery regulation",
+        "regulation (eu) 2023/1542", "digital battery passport",
+        "battery passport",
+    ],
+    "dpp": [
+        "digital product passport", "product passport",
+        "dpp central registry", "digital battery passport",
+        "battery passport",
+    ],
+    "eu_elv": [
+        "elv regulation", "eu elv regulation", "end-of-life vehicles",
+        "end-of-life vehicle regulation", "vehicle recycling regulation",
+    ],
+}
+
+REGULATION_OBLIGATION_KEYWORDS = [
+    "sustainability reporting", "double materiality", "assurance",
+    "due diligence", "supply chain due diligence", "human rights due diligence",
+    "carbon border adjustment", "embedded emissions", "cbam certificate",
+    "deforestation regulation", "due diligence statement", "geolocation",
+    "battery passport", "battery carbon footprint", "recycled content",
+    "packaging regulation", "packaging waste", "reuse targets",
+    "ecodesign requirements", "repairability", "unsold goods",
+    "digital product passport", "product data", "traceability",
+    "high-risk ai", "gpai", "conformity assessment",
+    "automotive recycled plastics", "closed-loop recycling",
+    "sustainable finance disclosure", "principal adverse impacts",
+]
+
+REGULATION_INDUSTRY_CONTEXT_BY_ID: dict[str, list[str]] = {
+    "espr": [
+        "textiles", "electronics", "steel", "aluminium", "aluminum",
+        "furniture", "tires", "repair", "unsold goods", "product design",
+    ],
+    "ppwr": [
+        "packaging", "reuse", "recycling", "recycled content",
+        "recycled plastic", "food packaging", "cosmetics packaging",
+        "retailers",
+    ],
+    "csddd": [
+        "supplier", "suppliers", "supply chain", "value chain",
+        "human rights", "responsible sourcing", "corporate compliance",
+    ],
+    "csrd": [
+        "scope 3", "supply chain data", "corporate reporting",
+        "auditor", "assurance", "non-eu companies", "esg data",
+    ],
+    "cbam": [
+        "steel", "aluminium", "aluminum", "cement", "fertilizer",
+        "fertiliser", "hydrogen", "exporter", "exporters", "importer",
+        "importers", "india", "turkey", "china",
+    ],
+    "eudr": [
+        "coffee", "cocoa", "palm oil", "rubber", "cattle", "soy",
+        "timber", "wood", "smallholder", "producer countries", "forest",
+    ],
+    "green_claims": [
+        "consumer protection", "advertising", "retail", "ecolabel",
+        "environmental marketing claims", "consumer brands",
+    ],
+    "eu_ai_act": [
+        "foundation model", "foundation models", "ai systems",
+        "provider", "providers", "deployer", "deployers", "ai governance",
+    ],
+    "battery_reg": [
+        "catena-x", "battery data", "ev battery", "ev batteries",
+        "lithium", "cobalt", "recycled content", "battery supply chain",
+        "korea", "china",
+    ],
+    "dpp": [
+        "textile", "textiles", "electronics", "battery", "catena-x",
+        "product data", "data interoperability", "supply chain data",
+    ],
+    "eu_elv": [
+        "automotive", "vehicle", "vehicles", "auto recyclers",
+        "dismantlers", "automotive shredder residue", "asr plastics",
+        "recycled plastics", "closed-loop", "car-to-car", "oem",
+    ],
+}
+
+SOURCE_TIER_KEYWORDS: dict[int, list[str]] = {
+    1: [
+        "european commission", "eur-lex", "european parliament",
+        "council of the eu", "official journal", "efrag", "sec",
+        "carb", "white & case", "freshfields", "baker mckenzie",
+        "latham", "linklaters", "norton rose", "ropes & gray",
+        "jd supra", "lexology", "iapp",
+    ],
+    2: [
+        "american recycler", "times of india", "the hindu",
+        "economic times", "packaging europe", "recycling today",
+        "automotive world", "auto recycling world", "resource recycling",
+        "plastics news", "plasticstoday", "packaging insights",
+        "foodnavigator", "daily coffee news", "eurometal", "fastmarkets",
+        "s&p global commodity", "charged evs", "battery news",
+        "wood central", "fibre2fashion", "solarquarter", "al circle",
+    ],
+    3: [
+        "carbon brief", "esg today", "edie", "businessgreen",
+        "responsible investor", "environmental finance", "trellis",
+        "greenbiz",
+    ],
+    4: [
+        "indexbox", "discovery alert", "stock titan", "ad hoc news",
+        "market research future", "market data forecast",
+        "fortune business insights", "yahoo finance", "investing.com",
+        "barchart", "tmx newsfile", "goodreturns", "globenewswire",
+        "pr newswire", "business wire", "openpr", "ein news",
+    ],
+}
+
 # ── 산업 전문 인텔리전스 화이트리스트 ─────────────────────────────────────
 # 3개 그룹: 전문지(NEWS/EXPERT) / 로펌(REPORT) / 원자재(MARKET)
 INDUSTRIAL_MEDIA_WHITELIST: dict[str, list[dict]] = {
@@ -942,9 +1091,175 @@ def score_importance(
     return score
 
 
-def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[RawArticle]:
+def article_source_search_text(article: RawArticle) -> str:
+    return " ".join(
+        str(value)
+        for value in [
+            article.get("source", ""),
+            article.get("sourceUrl", ""),
+            article.get("url", ""),
+        ]
+        if value
+    ).lower()
+
+
+def article_full_search_text(article: RawArticle) -> str:
+    return " ".join(
+        str(value)
+        for value in [
+            article.get("title", ""),
+            article.get("summary", ""),
+            article.get("source", ""),
+            article.get("sourceUrl", ""),
+        ]
+        if value
+    ).lower()
+
+
+def detect_source_tier(article: RawArticle) -> int:
+    source_text = article_source_search_text(article)
+    # Tier 4는 같은 소스가 언론/보도자료로 분류되어도 가장 엄격하게 본다.
+    for tier in (4, 1, 2, 3):
+        if keyword_matches(source_text, SOURCE_TIER_KEYWORDS[tier]):
+            return tier
+    source_type = detect_source_type(article.get("source", ""))
+    if source_type in {"공식기관", "로펌", "컨설팅/자문"}:
+        return 1
+    if source_type in {"산업협회"}:
+        return 2
+    return 2
+
+
+def regulation_direct_keywords(regulation: dict[str, Any]) -> list[str]:
+    regulation_id = regulation.get("id", "")
+    values = [
+        *REGULATION_DIRECT_KEYWORDS_BY_ID.get(regulation_id, []),
+        regulation.get("acronym", ""),
+        regulation.get("code", ""),
+        regulation.get("name_en", ""),
+    ]
+    return dedupe_preserve_order(str(value) for value in values if str(value).strip())
+
+
+def regulation_obligation_keywords(regulation: dict[str, Any]) -> list[str]:
+    return dedupe_preserve_order(
+        [
+            *REGULATION_OBLIGATION_KEYWORDS,
+            *_get_required_keywords(regulation),
+            *_get_positive_keywords(regulation),
+        ]
+    )
+
+
+def regulation_industry_context_keywords(regulation: dict[str, Any]) -> list[str]:
+    return dedupe_preserve_order(
+        [
+            *REGULATION_INDUSTRY_CONTEXT_BY_ID.get(regulation.get("id", ""), []),
+            *_get_industry_terms(regulation),
+            *_get_context_keywords(regulation),
+        ]
+    )
+
+
+def regulation_relevance_reason(
+    article: RawArticle,
+    regulation: dict[str, Any],
+) -> str | None:
+    text = article_full_search_text(article)
+    source_tier = detect_source_tier(article)
+    hard_exclusions = [
+        *_get_exclude_keywords(regulation),
+        *LOW_QUALITY_EXCLUDE_KEYWORDS,
+    ]
+    if keyword_matches(text, hard_exclusions):
+        return None
+    if source_tier == 4 and keyword_matches(text, LOW_QUALITY_KEYWORDS):
+        return None
+
+    direct = keyword_matches(text, regulation_direct_keywords(regulation))
+    obligation = keyword_matches(text, regulation_obligation_keywords(regulation))
+    industry_context = keyword_matches(text, regulation_industry_context_keywords(regulation))
+
+    if source_tier == 4:
+        if direct and industry_context:
+            return "tier4_direct_plus_industry"
+        return None
+
+    if source_tier == 3:
+        if direct:
+            return "tier3_direct_regulation"
+        return None
+
+    if source_tier == 1:
+        if direct:
+            return "tier1_direct_regulation"
+        if obligation:
+            return "tier1_regulatory_obligation"
+        return None
+
+    if direct:
+        return "direct_regulation"
+    if obligation and industry_context:
+        return "obligation_plus_industry"
+    return None
+
+
+def is_regulation_relevant(
+    article: RawArticle,
+    regulation: dict[str, Any],
+) -> bool:
+    return regulation_relevance_reason(article, regulation) is not None
+
+
+def is_relevant_for_any_regulation(
+    article: RawArticle,
+    regulations: list[dict[str, Any]],
+) -> bool:
+    return any(is_regulation_relevant(article, regulation) for regulation in regulations)
+
+
+def build_query_regulation_map(
+    regulations: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    mapping: dict[str, list[dict[str, Any]]] = {}
+    for regulation in regulations:
+        for query in _get_search_queries(regulation):
+            key = normalize_whitespace(query).lower()
+            mapping.setdefault(key, []).append(regulation)
+    return mapping
+
+
+def log_prefilter_stats(
+    query: str,
+    regulations: list[dict[str, Any]],
+    seen: int,
+    passed: int,
+) -> None:
+    if not regulations:
+        return
+    rejected = max(seen - passed, 0)
+    pass_rate = round(passed / max(seen, 1) * 100, 1)
+    regulation_ids = ",".join(reg.get("id", "") for reg in regulations)
+    print(
+        "news_prefilter "
+        f"query={query[:80]!r} "
+        f"regulations={regulation_ids} "
+        f"seen={seen} "
+        f"passed={passed} "
+        f"rejected={rejected} "
+        f"pass_rate={pass_rate}%"
+    )
+
+
+def fetch_google_news(
+    query: str,
+    lookback_days: int = LOOKBACK_DAYS,
+    regulations: list[dict[str, Any]] | None = None,
+) -> list[RawArticle]:
     normalized_query = normalize_whitespace(query)
-    cache_key = ("google-news-query", normalized_query.lower(), lookback_days)
+    gate_regulations = regulations or []
+    regulation_ids = tuple(sorted(reg.get("id", "") for reg in gate_regulations))
+    cache_key = ("google-news-query", normalized_query.lower(), lookback_days, regulation_ids)
     cached = _cache_get(_QUERY_ARTICLE_CACHE, cache_key)
     if cached is not None:
         return cached
@@ -953,6 +1268,8 @@ def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[Ra
     articles: list[RawArticle] = []
     seen_article_keys: set[str] = set()
     had_request_error = False
+    seen_count = 0
+    passed_count = 0
     query_with_window = f"{normalized_query} when:{lookback_days}d"
 
     for hl, gl, ceid in GOOGLE_NEWS_LOCALES:
@@ -994,8 +1311,15 @@ def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[Ra
                 if article_key in seen_article_keys:
                     continue
                 seen_article_keys.add(article_key)
+                seen_count += 1
+                if gate_regulations and not is_relevant_for_any_regulation(article, gate_regulations):
+                    continue
+                passed_count += 1
                 articles.append(article)
-                upsert_raw_article(article)  # dual-write hook → raw_articles
+                if gate_regulations:
+                    upsert_raw_article(article)  # prefiltered dual-write hook → raw_articles
+
+    log_prefilter_stats(normalized_query, gate_regulations, seen_count, passed_count)
 
     if articles or not had_request_error:
         _cache_set(_QUERY_ARTICLE_CACHE, cache_key, articles)
@@ -1010,16 +1334,23 @@ def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[Ra
 def fetch_articles_by_query(
     queries: list[str],
     lookback_days: int = LOOKBACK_DAYS,
+    regulation_by_query: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, list[RawArticle]]:
     unique_queries = dedupe_preserve_order(queries)
     if not unique_queries:
         return {}
 
     articles_by_query: dict[str, list[RawArticle]] = {}
+    gate_map = regulation_by_query or {}
     workers = min(MAX_RSS_QUERY_WORKERS, len(unique_queries))
     with ThreadPoolExecutor(max_workers=workers) as executor:
         future_to_query = {
-            executor.submit(fetch_google_news, query, lookback_days): query
+            executor.submit(
+                fetch_google_news,
+                query,
+                lookback_days,
+                gate_map.get(normalize_whitespace(query).lower(), []),
+            ): query
             for query in unique_queries
         }
         for future in as_completed(future_to_query):
@@ -1151,13 +1482,20 @@ def _scrape_whitelist_html(entry: dict) -> list[dict]:
         return []
 
 
-def fetch_full_text_scrapper(lookback_days: int = LOOKBACK_DAYS) -> list[dict]:
+def fetch_full_text_scrapper(
+    lookback_days: int = LOOKBACK_DAYS,
+    regulations: list[dict[str, Any]] | None = None,
+) -> list[dict]:
     """
     전문 매체 화이트리스트 기반 직접 수집 엔진.
     - RSS 보유 매체: feedparser 직접 파싱  [NEWS/MARKET]
     - RSS 미보유 매체: BeautifulSoup HTML 스크래핑  [REPORT/EXPERT]
-    수집된 기사에 article_type 태그 주입 후 upsert_raw_article 저장.
+    수집된 기사 중 규제 관련성 gate 통과 건만 upsert_raw_article 저장.
     """
+    if regulations is None:
+        from .data import load_regulations
+        regulations = load_regulations()
+
     cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
     all_articles: list[dict] = []
 
@@ -1170,11 +1508,16 @@ def fetch_full_text_scrapper(lookback_days: int = LOOKBACK_DAYS) -> list[dict]:
             else:
                 continue
 
+            passed_articles: list[dict] = []
             for art in articles:
+                if not is_relevant_for_any_regulation(art, regulations):
+                    continue
                 upsert_raw_article(art)
-            all_articles.extend(articles)
+                passed_articles.append(art)
+            all_articles.extend(passed_articles)
             print(
-                f"[whitelist] {group_name}/{entry['name']} → {len(articles)}건 수집"
+                f"[whitelist] {group_name}/{entry['name']} → "
+                f"{len(passed_articles)}/{len(articles)}건 저장"
             )
 
     return all_articles
@@ -1520,7 +1863,11 @@ def fetch_regulation_news_items(
         return cached[: min(max(limit, _get_max_items(regulation), DEFAULT_PER_REGULATION_LIMIT), MAX_ALL_NEWS_LIMIT)]
 
     queries = _get_search_queries(regulation)
-    articles_by_query = fetch_articles_by_query(queries, lookback_days=lookback_days)
+    articles_by_query = fetch_articles_by_query(
+        queries,
+        lookback_days=lookback_days,
+        regulation_by_query=build_query_regulation_map([regulation]),
+    )
     items = build_regulation_news_items_from_articles(
         regulation,
         articles_by_query,
@@ -1650,7 +1997,11 @@ def fetch_all_rss_articles(
     for regulation in regulations:
         all_queries.extend(_get_search_queries(regulation))
 
-    articles_by_query = fetch_articles_by_query(all_queries, lookback_days=lookback_days)
+    articles_by_query = fetch_articles_by_query(
+        all_queries,
+        lookback_days=lookback_days,
+        regulation_by_query=build_query_regulation_map(regulations),
+    )
 
     for regulation in regulations:
         reg_cache_key = regulation_cache_key(regulation, lookback_days)

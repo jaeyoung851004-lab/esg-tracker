@@ -121,7 +121,11 @@
           "ESPR circular design",
           "Ecodesign Regulation unsold goods",
           "EU ecodesign fans regulation",
-          "sustainable products regulation ecodesign textiles"
+          "sustainable products regulation ecodesign textiles",
+          "ESPR textiles India exporters",
+          "ESPR electronics Korea supply chain",
+          "ESPR furniture Italy ecodesign",
+          "ESPR steel aluminium product requirements"
         ],
         "required_keywords": [
           "ESPR",
@@ -474,7 +478,11 @@
           "Packaging Packaging Waste Regulation PPWR 2026",
           "PPWR recycled content packaging EU compliance",
           "PPWR Packaging and Packaging Waste Regulation",
-          "EU PPWR recycled content reuse targets"
+          "EU PPWR recycled content reuse targets",
+          "PPWR Spain packaging recycled content",
+          "PPWR Germany packaging reuse targets",
+          "PPWR packaging recycling retailers",
+          "PPWR food packaging compliance Europe"
         ],
         "required_keywords": [
           "PPWR",
@@ -773,7 +781,11 @@
           "supply chain due diligence EU",
           "human rights due diligence EU",
           "responsible sourcing EU regulation",
-          "value chain due diligence"
+          "value chain due diligence",
+          "CSDDD India suppliers due diligence",
+          "CSDDD textile supply chain compliance",
+          "CS3D automotive suppliers Europe",
+          "corporate due diligence Turkey exporters"
         ],
         "required_keywords": [
           "CSDDD",
@@ -1108,7 +1120,11 @@
           "CSRD Scope 3 supply chain reporting companies",
           "ESRS sustainability reporting corporate compliance",
           "Corporate Sustainability Reporting Directive companies",
-          "CSRD Omnibus reporting requirements Europe"
+          "CSRD Omnibus reporting requirements Europe",
+          "CSRD India companies sustainability reporting",
+          "CSRD Australia companies ESRS reporting",
+          "CSRD non-EU companies reporting obligation",
+          "ESRS assurance auditors supply chain data"
         ],
         "required_keywords": [
           "CSRD",
@@ -1446,7 +1462,11 @@
           "CBAM steel aluminium exporter compliance cost",
           "carbon border tax steel industry Europe",
           "CBAM certificate importer emissions cost",
-          "carbon border adjustment mechanism industry response"
+          "carbon border adjustment mechanism industry response",
+          "CBAM India steel exporter",
+          "CBAM Turkey steel exporter",
+          "CBAM China aluminium exporter",
+          "CBAM cement exporters Europe"
         ],
         "required_keywords": [
           "CBAM",
@@ -1748,7 +1768,11 @@
       "news_config": {
         "search_queries": [
           "EU Deforestation Regulation EUDR compliance 2026",
-          "EUDR deforestation due diligence statement simplification"
+          "EUDR deforestation due diligence statement simplification",
+          "EUDR Brazil coffee exporters",
+          "EUDR Indonesia palm oil supply chain",
+          "EUDR Ghana cocoa due diligence",
+          "EUDR India rubber exporters"
         ],
         "required_keywords": [
           "EUDR",
@@ -2370,7 +2394,11 @@
           "AI risk management EU",
           "AI systems regulation Europe",
           "EU AI Office code of practice",
-          "AI Act deployer obligations"
+          "AI Act deployer obligations",
+          "EU AI Act India outsourcing compliance",
+          "EU AI Act Korea AI providers",
+          "AI Act high-risk HR recruitment systems",
+          "AI Act foundation model code of practice"
         ],
         "required_keywords": [
           "EU AI Act",
@@ -2751,7 +2779,11 @@
           "EU Digital Battery Passport battery data interoperability",
           "EU battery passport carbon footprint recycled content",
           "Catena-X battery passport data space",
-          "EU Battery Regulation China battery traceability standards"
+          "EU Battery Regulation China battery traceability standards",
+          "battery passport Korea",
+          "EU Battery Regulation Korea battery makers",
+          "Catena-X battery passport Korea",
+          "battery passport China traceability"
         ],
         "required_keywords": [
           "EU Battery Regulation",
@@ -3099,7 +3131,11 @@
           "Digital Product Passport central registry product data standards",
           "Catena-X product passport data interoperability",
           "EU China battery traceability platform product data",
-          "CATL BMW battery passport data standards"
+          "CATL BMW battery passport data standards",
+          "Digital Product Passport textiles India",
+          "Digital Product Passport electronics Korea",
+          "DPP Spain textile product data",
+          "product passport automotive suppliers Europe"
         ],
         "required_keywords": [
           "digital product passport",
@@ -3326,7 +3362,11 @@
           "vehicle recycling recycled plastic supply chain",
           "closed-loop recycling automotive plastics",
           "car-to-car recycling plastic",
-          "ELV recycled content targets automotive plastics"
+          "ELV recycled content targets automotive plastics",
+          "American Recycler ELV regulation",
+          "Recycling Today automotive recycled plastics",
+          "ELV automotive recycled plastics Spain",
+          "EU ELV regulation automotive suppliers"
         ],
         "required_keywords": [
           "end-of-life vehicles",

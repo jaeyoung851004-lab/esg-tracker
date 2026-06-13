@@ -38,12 +38,12 @@ def _crawl_once() -> None:
         rss_total = 0
         for reg in regulations:
             for query in (reg.get("search_queries") or []):
-                articles = fetch_google_news(query)
+                articles = fetch_google_news(query, regulations=[reg])
                 rss_total += len(articles)
         logger.info("[crawler] Google News 완료 — %d건", rss_total)
 
         # ② 화이트리스트 전문 매체 직접 수집
-        wl_articles = fetch_full_text_scrapper()
+        wl_articles = fetch_full_text_scrapper(regulations=regulations)
         logger.info("[crawler] 화이트리스트 완료 — %d건", len(wl_articles))
 
     except Exception:
