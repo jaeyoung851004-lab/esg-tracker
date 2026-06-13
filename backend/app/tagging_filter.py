@@ -317,6 +317,65 @@ def infer_stakeholder_tag(title: str, excerpt: str) -> str:
     return best_tag
 
 
+# ── 규제별 컨텍스트 확인 키워드 (최소 1개 이상 필요) ──────────────────────
+# 이 중 하나라도 없으면 tagging_confidence가 감소하여 "분류 보류" 처리
+REGULATION_CONTEXT_KEYWORDS: dict[str, list[str]] = {
+    "ESPR": ["ecodesign", "product", "sustainable product", "repairabilit", "working plan", "에코디자인"],
+    "PPWR": ["packaging", "recycl", "waste", "plastic", "포장"],
+    "CSDDD": ["due diligence", "supply chain", "liable", "human rights", "공급망", "실사"],
+    "CSRD": ["reporting", "disclosure", "report", "esrs", "materialit", "공시", "보고"],
+    "CBAM": ["carbon", "border", "emission", "탄소", "국경"],
+    "EUDR": ["deforestation", "forest", "timber", "cattle", "산림", "벌채"],
+    "GCD": ["green claim", "greenwashing", "environmental claim", "그린클레임", "그린워싱"],
+    "AI Act": ["artificial intelligence", "ai system", "high-risk", "gpai", "인공지능", "ai법"],
+    "Battery Reg": ["battery", "passport", "recycled", "cobalt", "lithium", "배터리"],
+    "DPP": ["product passport", "digital passport", "traceabilit", "여권", "디지털 제품"],
+    "ELV": ["end-of-life", "vehicle", "recycling", "scrap", "폐차", "자동차 재활용"],
+    "SFDR": ["sustainable finance", "disclosure", "fund", "pai", "article 8", "article 9", "펀드", "공시"],
+    "KSSB": ["sustainability", "reporting", "korea", "standard", "한국", "공시"],
+    "RE100": ["renewable energy", "re100", "clean energy", "ppa", "재생에너지"],
+    "Carbon Cost Policy": ["carbon", "emission", "climate", "ets", "탄소", "배출"],
+}
+
+# 소스 유형별 기본 신뢰도 (사용자 지정값 RSS=0.6, 직접크롤=0.9 기반)
+_SOURCE_CONFIDENCE: dict[str, float] = {
+    "NEWS":   0.72,   # Google News RSS — 컨텍스트 매칭 시 ≥0.8 돌파
+    "REPORT": 0.92,   # 전문지 직접 크롤
+    "MARKET": 0.88,
+    "EXPERT": 0.85,
+}
+
+_CONTEXT_MATCH_FACTOR = 1.10   # 컨텍스트 키워드 매칭 시 보너스
+_CONTEXT_MISS_FACTOR  = 0.75   # 컨텍스트 키워드 없을 때 패널티
+
+
+def check_regulation_context(text: str, regulation_tag: str) -> bool:
+    """규제별 필수 컨텍스트 키워드 중 하나 이상이 텍스트에 존재하면 True."""
+    ctx_kws = REGULATION_CONTEXT_KEYWORDS.get(regulation_tag, [])
+    if not ctx_kws:
+        return True
+    lowered = text.lower()
+    return any(kw.lower() in lowered for kw in ctx_kws)
+
+
+def compute_tagging_confidence(
+    combined_text: str,
+    regulation_tag: str,
+    article_type: str = "NEWS",
+) -> float:
+    """
+    소스 신뢰도 × 컨텍스트 매칭 팩터로 tagging_confidence를 계산한다.
+    - NEWS + context match  = 0.72 * 1.10 ≈ 0.79  (≥0.8 경계)
+    - NEWS + no context     = 0.72 * 0.75 ≈ 0.54
+    - REPORT + context      = 0.92 * 1.10 ≈ 1.01 → capped at 1.0
+    - REPORT + no context   = 0.92 * 0.75 ≈ 0.69
+    """
+    src_conf = _SOURCE_CONFIDENCE.get(article_type.upper(), 0.72)
+    ctx_ok = check_regulation_context(combined_text, regulation_tag)
+    factor = _CONTEXT_MATCH_FACTOR if ctx_ok else _CONTEXT_MISS_FACTOR
+    return round(min(src_conf * factor, 1.0), 4)
+
+
 def filter_raw_articles(rows: list["RawArticle"]) -> list["RawArticle"]:
     """ORM RawArticle 행 리스트를 받아 키워드 필터를 통과한 것만 반환."""
     return [

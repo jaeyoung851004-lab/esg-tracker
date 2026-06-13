@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +58,7 @@ interface NRArticle {
   stakeholder: string;
   ai_summary: string;
   article_type: string;
+  tagging_confidence: number;
 }
 
 type SortKey = "date" | "regulation" | "country_iso" | "stakeholder" | "source";
@@ -90,13 +91,22 @@ export default function NewsroomPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // URL params로 초기 필터 세팅 (대시보드 → 뉴스룸 연동)
+  const initRef = useRef(false);
   const [filterReg, setFilterReg] = useState<string | null>(null);
   const [filterSt, setFilterSt] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [highConfOnly, setHighConfOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [sortCol, setSortCol] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // 오늘 날짜 업데이트 표시
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  })();
 
   const ARTICLE_TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
     NEWS:   { label: "뉴스",       color: T.blueTxt,  bg: T.blueBg },
@@ -106,6 +116,15 @@ export default function NewsroomPage() {
   };
 
   useEffect(() => {
+    // URL 파라미터로 초기 필터 세팅 (대시보드 매트릭스 셀 클릭 연동)
+    if (!initRef.current && typeof window !== "undefined") {
+      initRef.current = true;
+      const sp = new URLSearchParams(window.location.search);
+      const reg = sp.get("regulation");
+      const st = sp.get("stakeholder");
+      if (reg) setFilterReg(reg);
+      if (st) setFilterSt(st);
+    }
     fetch(`${API_BASE}/api/v1/intelligence/newsroom?days=30&limit=500`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -133,6 +152,7 @@ export default function NewsroomPage() {
     if (filterReg) rows = rows.filter((r) => r.regulation === filterReg);
     if (filterSt) rows = rows.filter((r) => r.stakeholder === filterSt);
     if (filterType) rows = rows.filter((r) => r.article_type === filterType);
+    if (highConfOnly) rows = rows.filter((r) => (r.tagging_confidence ?? 0) >= 0.8);
     if (search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter(
@@ -145,7 +165,7 @@ export default function NewsroomPage() {
       const cmp = va < vb ? -1 : va > vb ? 1 : 0;
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [articles, filterReg, filterSt, search, sortCol, sortDir]);
+  }, [articles, filterReg, filterSt, filterType, highConfOnly, search, sortCol, sortDir]);
 
   function SortTh({ col, label, width }: { col: SortKey; label: string; width?: number }) {
     const active = sortCol === col;
@@ -180,7 +200,7 @@ export default function NewsroomPage() {
     );
   }
 
-  const anyFilter = filterReg || filterSt || filterType || search;
+  const anyFilter = filterReg || filterSt || filterType || highConfOnly || search;
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg0, color: T.txt, fontFamily: "'Inter', sans-serif", display: "flex", flexDirection: "column" }}>
@@ -216,9 +236,14 @@ export default function NewsroomPage() {
             인텔리전스 뉴스룸 — 최근 30일 다국어 외신 전량
           </span>
         </div>
-        <span style={{ fontSize: 11, color: T.txt3 }}>
-          {loading ? "로딩 중..." : `전체 ${articles.length}건`}
-        </span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+          <span style={{ fontSize: 11, color: T.txt3 }}>
+            {loading ? "로딩 중..." : `전체 ${articles.length}건`}
+          </span>
+          <span style={{ fontSize: 10, color: T.txt3, fontFamily: "monospace" }}>
+            [업데이트: {todayStr}]
+          </span>
+        </div>
       </div>
 
       {/* ── 필터 바 ── */}
@@ -263,9 +288,16 @@ export default function NewsroomPage() {
               onClick={() => setFilterSt(filterSt === s ? null : s)} />
           );
         })}
+        <FilterChip
+          label={`고신뢰 ≥0.8${highConfOnly ? " ✓" : ""}`}
+          active={highConfOnly}
+          color={T.lime}
+          bg={T.limeDim}
+          onClick={() => setHighConfOnly((v) => !v)}
+        />
         {anyFilter && (
           <button
-            onClick={() => { setFilterReg(null); setFilterSt(null); setFilterType(null); setSearch(""); }}
+            onClick={() => { setFilterReg(null); setFilterSt(null); setFilterType(null); setHighConfOnly(false); setSearch(""); }}
             style={{
               padding: "3px 10px", borderRadius: 20,
               border: `1px solid ${T.border}`, background: "transparent",

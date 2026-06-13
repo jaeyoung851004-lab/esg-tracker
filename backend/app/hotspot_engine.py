@@ -263,7 +263,7 @@ def get_matrix_signal_counts(
             session.query(
                 TaggedArticle.regulation_tag,
                 TaggedArticle.stakeholder_tag,
-                func.count(TaggedArticle.id),
+                func.count(func.distinct(TaggedArticle.article_id)),
             )
             .group_by(
                 TaggedArticle.regulation_tag,

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from .intelligence_db import RawArticle, TaggedArticle, _engine
 from .tagging_filter import (
+    compute_tagging_confidence,
     filter_raw_articles,
     infer_regulation_tag,
     infer_stakeholder_tag,
@@ -140,6 +141,10 @@ def _process_one(row: RawArticle, session: Session) -> bool:
     regulation_tag = infer_regulation_tag(combined, "")
     stakeholder_tag = infer_stakeholder_tag(combined, "")
 
+    # tagging_confidence 계산 (소스 유형 × 컨텍스트 매칭)
+    article_type = getattr(row, "article_type", "NEWS") or "NEWS"
+    confidence = compute_tagging_confidence(combined, regulation_tag, article_type)
+
     ai_summary = build_ai_summary(title_ko, regulation_tag, stakeholder_tag, row.source_name or "")
 
     tagged = TaggedArticle(
@@ -149,6 +154,7 @@ def _process_one(row: RawArticle, session: Session) -> bool:
         ai_summary=ai_summary,
         news_timeline=json.dumps({"phase": "시행 중"}, ensure_ascii=False),
         is_processed=True,
+        tagging_confidence=confidence,
     )
     session.add(tagged)
     return True

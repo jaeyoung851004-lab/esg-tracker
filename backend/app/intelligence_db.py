@@ -12,6 +12,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -60,6 +61,7 @@ class TaggedArticle(_Base):
     ai_summary = Column(Text)
     news_timeline = Column(Text)           # JSON 직렬화 문자열로 저장
     is_processed = Column(Boolean, default=False)
+    tagging_confidence = Column(Float, nullable=False, server_default="0.6")
 
     article = relationship("RawArticle", back_populates="tagged")
 
@@ -72,6 +74,7 @@ def _run_migrations() -> None:
     migrations = [
         "ALTER TABLE raw_articles ADD COLUMN article_type VARCHAR(16) NOT NULL DEFAULT 'NEWS'",
         "ALTER TABLE raw_articles ADD COLUMN retained_until DATETIME",
+        "ALTER TABLE tagged_articles ADD COLUMN tagging_confidence REAL NOT NULL DEFAULT 0.6",
     ]
     with _engine.begin() as conn:
         for stmt in migrations:

@@ -120,6 +120,7 @@ class NewsroomArticle(BaseModel):
     stakeholder: str
     ai_summary: str
     article_type: str
+    tagging_confidence: float
 
 
 class NewsroomResponse(BaseModel):
@@ -302,12 +303,13 @@ def get_newsroom(
     stakeholder: str | None = Query(default=None, description="이해관계자 태그 필터"),
     country: str | None = Query(default=None, description="ISO-2 국가 코드 필터"),
     article_type: str | None = Query(default=None, description="유형 필터: NEWS/REPORT/MARKET/EXPERT"),
+    min_confidence: float = Query(default=0.0, ge=0.0, le=1.0, description="최소 tagging_confidence (0=전체, 0.8=고신뢰만)"),
     days: int = Query(default=30, ge=1, le=365, description="조회 기간(일)"),
     limit: int = Query(default=500, ge=1, le=1000, description="최대 반환 건수"),
 ) -> NewsroomResponse:
     """
-    인텔리전스 뉴스룸 — 규제·이해관계자·국가 필터 지원.
-    최대 500건 반환, 프론트엔드에서 클라이언트사이드 정렬/필터링.
+    인텔리전스 뉴스룸 — 규제·이해관계자·국가·신뢰도 필터 지원.
+    DISTINCT url_hash 기반 중복 제거. 최대 500건 반환.
     """
     since = datetime.now(UTC) - timedelta(days=days)
 
@@ -323,10 +325,21 @@ def get_newsroom(
             q = q.filter(TaggedArticle.stakeholder_tag == stakeholder)
         if article_type:
             q = q.filter(RawArticle.article_type == article_type.upper())
+        if min_confidence > 0:
+            q = q.filter(TaggedArticle.tagging_confidence >= min_confidence)
+        # DISTINCT: url_hash 기준 중복 제거를 위해 distinct(RawArticle.url_hash) 사용
+        q = q.distinct(RawArticle.url_hash)
         pairs = q.order_by(RawArticle.created_at.desc()).limit(limit * 2).all()
 
+    seen_hashes: set[str] = set()
     articles: list[NewsroomArticle] = []
     for raw, tagged in pairs:
+        # Python 레벨 추가 중복 방어
+        h = getattr(raw, "url_hash", str(raw.id))
+        if h in seen_hashes:
+            continue
+        seen_hashes.add(h)
+
         iso = source_name_to_iso(raw.source_name or "")
         if country and iso != country.upper():
             continue
@@ -343,6 +356,7 @@ def get_newsroom(
                 stakeholder=tagged.stakeholder_tag or "",
                 ai_summary=tagged.ai_summary or "",
                 article_type=getattr(raw, "article_type", "NEWS") or "NEWS",
+                tagging_confidence=getattr(tagged, "tagging_confidence", 0.6) or 0.6,
             )
         )
         if len(articles) >= limit:

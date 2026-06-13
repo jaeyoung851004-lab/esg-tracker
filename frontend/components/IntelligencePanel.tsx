@@ -717,7 +717,9 @@ export function IntelligencePanel() {
 
   const handleCellClick = useCallback(
     (reg: string, st: string, _cell?: MatrixCell) => {
-      openDrawer({ regulation: reg, stakeholder: st, label: `${reg} × ${st}` });
+      // 매트릭스 셀 클릭 → 뉴스룸으로 동일 필터 연동
+      const params = new URLSearchParams({ regulation: reg, stakeholder: st });
+      window.location.href = `/newsroom?${params.toString()}`;
     },
     [openDrawer]
   );
@@ -737,6 +739,11 @@ export function IntelligencePanel() {
   const spikeCount = hotspotData?.spike_countries ?? null;
   const trackedCountries = hotspotData?.total_countries ?? null;
   const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+  const todayDate = new Date();
+  const fromDate = new Date(todayDate);
+  fromDate.setDate(todayDate.getDate() - 30);
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const dateRangeLabel = `데이터 기준: 최근 30일 누적 (${fmt(fromDate)} ~ ${fmt(todayDate)})`;
 
   return (
     <>
@@ -901,6 +908,9 @@ export function IntelligencePanel() {
               <p style={{ fontSize: 11, color: T.txt3, marginTop: 3, lineHeight: 1.5, maxWidth: 380 }}>
                 "로펌은 법조문을 독해하지만, 임팩트온은 우리 기업을 둘러싼 시장의 역동적 맥박을 봅니다."
               </p>
+              <div style={{ fontSize: 10, color: T.lime, marginTop: 5, opacity: 0.8, fontFamily: "monospace" }}>
+                [{dateRangeLabel}]
+              </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.green, animation: "live-pulse 2s ease-in-out infinite" }} />
@@ -925,7 +935,12 @@ export function IntelligencePanel() {
                   {matrixLoading ? "..." : `${totalSignals ?? 0}건 집계`}
                 </span>
               </div>
-              <div style={{ fontSize: 22, fontWeight: 500, color: T.txt }}>{matrixLoading ? "—" : (totalSignals ?? 0)}</div>
+              <div
+                role="button"
+                onClick={() => { window.location.href = "/newsroom"; }}
+                style={{ fontSize: 22, fontWeight: 500, color: T.txt, cursor: "pointer" }}
+                title="뉴스룸에서 전체 보기"
+              >{matrixLoading ? "—" : (totalSignals ?? 0)}</div>
               <div style={{ fontSize: 11, color: T.txt3, marginTop: 2 }}>DB 누적 신호 (규제×이해관계자)</div>
             </div>
 
@@ -952,6 +967,9 @@ export function IntelligencePanel() {
               <div style={{ fontSize: 22, fontWeight: 500, color: T.txt }}>{hotspotLoading ? "—" : (trackedCountries ?? 0)}</div>
               <div style={{ fontSize: 11, color: T.txt3, marginTop: 2 }}>감지 국가</div>
             </div>
+          </div>
+          <div style={{ fontSize: 10, color: T.txt3, marginTop: -2, textAlign: "right" }}>
+            *기준: 최근 30일 외신/전문지 데이터
           </div>
 
           {/* 규제 필터 탭 */}
