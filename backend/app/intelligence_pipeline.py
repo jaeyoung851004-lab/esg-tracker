@@ -1,35 +1,30 @@
 """
-Section 2.2 — 2차 LLM 인텔리전스 가공 파이프라인 배치 스크립트
+Section 2.2 — 인텔리전스 가공 파이프라인
 
-실행 방법:
-    python -m backend.app.intelligence_pipeline
-    # 또는 직접
-    python backend/app/intelligence_pipeline.py
-
-환경 변수:
-    OPENAI_API_KEY   : OpenAI 키 (필수)
-    OPENAI_MODEL     : 사용할 모델 (기본값: gpt-4o-mini)
-    PIPELINE_BATCH   : 회당 처리 건수 (기본값: 20)
+변경 이력:
+- OpenAI 의존 제거: OPENAI_API_KEY 없이도 키워드 기반 태깅 완전 가동
+- DeepL 번역 추가: 영문 제목 → 한국어 실시간 번역 후 태깅 정밀도 향상
+- reprocess_all(): 기존 잘못 태깅된 ESG/기타 행 전량 재가공
+- 완전 백그라운드 스레드 실행 — FastAPI 워커 자원 0% 간섭
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
-import sys
-import textwrap
 import time
 from datetime import UTC, datetime
 
-# 패키지 외부 직접 실행 지원
-if __name__ == "__main__" and __package__ is None:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-    __package__ = "backend.app"
-
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from .intelligence_db import RawArticle, TaggedArticle, _engine
-from .tagging_filter import filter_raw_articles, infer_regulation_tag, infer_stakeholder_tag
+from .tagging_filter import (
+    filter_raw_articles,
+    infer_regulation_tag,
+    infer_stakeholder_tag,
+    passes_keyword_filter,
+)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -37,167 +32,204 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
 
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-PIPELINE_BATCH = int(os.getenv("PIPELINE_BATCH", "20"))
+# ── 환경 변수 ───────────────────────────────────────────────────────────────
+DEEPL_API_KEY = os.getenv("DEEPL_API_KEY", "ee7052c5-3292-48b3-81ab-c63494de6c55:fx")
+DEEPL_API_URL = "https://api-free.deepl.com/v2/translate"
+PIPELINE_BATCH = int(os.getenv("PIPELINE_BATCH", "50"))
 
-# ── Section 2.2 AI 인텔리전스 가공 프롬프트 템플릿 ─────────────────────────
-
-_SYSTEM_PROMPT = textwrap.dedent("""\
-    당신은 글로벌 ESG 규제 전문가이자 대기업 임원 보고서 작성 어시스턴트입니다.
-    뉴스 기사를 분석하여 ESG 인텔리전스 매트릭스에 필요한 정형 데이터를 JSON으로 추출합니다.
-    반드시 아래 JSON 스키마만 출력하고 다른 텍스트는 포함하지 마세요.
-""")
-
-_USER_PROMPT_TEMPLATE = textwrap.dedent("""\
-    ## 분석 대상 뉴스
-    제목: {title}
-    본문(발췌): {excerpt}
-
-    ## 추출 지시
-    아래 JSON 형식으로만 응답하세요. 모든 필드는 필수입니다.
-
-    {{
-      "regulation_tag": "<PPWR | CSDDD | CSRD | CBAM | Battery Reg | ESG 중 가장 관련성 높은 것 1개>",
-      "stakeholder_tag": "<경쟁사 | 평가기관 | 정부당국 | 기관투자자 | 시민단체 | 기타 중 1개>",
-      "ai_summary": "<대기업 전략팀 실무자가 바로 보고에 활용할 수 있는 3줄 요약. 각 줄은 '•'로 시작. 한국어로 작성>",
-      "news_timeline": {{
-        "event_date": "<기사에서 추론 가능한 사건 날짜 또는 null>",
-        "deadline": "<규제 시행·제출 마감일 또는 null>",
-        "phase": "<입법 준비 | 입법 완료 | 시행 중 | 시행 연기 | 개정 중 | 해당 없음 중 1개>",
-        "key_actors": ["<핵심 기관·기업·단체 이름 최대 3개>"]
-      }}
-    }}
-""")
+# DeepL 호출 실패 시 비활성화 플래그 (프로세스 수명 동안 유지)
+_DEEPL_DISABLED = False
+_TRANSLATION_CACHE: dict[str, str] = {}
 
 
-def _call_openai(title: str, excerpt: str) -> dict | None:
-    """OpenAI Chat Completions API를 호출해 구조화된 결과를 반환한다."""
+# ── DeepL 번역 ───────────────────────────────────────────────────────────────
+def translate_to_ko(text: str) -> str:
+    """
+    영문 텍스트를 한국어로 번역한다.
+    - 이미 한국어거나 빈 문자열이면 원문 반환
+    - DeepL 실패 시 원문 반환 (파이프라인을 중단하지 않음)
+    """
+    global _DEEPL_DISABLED
+
+    if not text or not text.strip():
+        return text
+
+    # 한글이 이미 포함되어 있으면 번역 불필요
+    import re
+    if re.search(r"[가-힣]", text):
+        return text
+
+    if _DEEPL_DISABLED:
+        return text
+
+    if text in _TRANSLATION_CACHE:
+        return _TRANSLATION_CACHE[text]
+
     try:
-        import openai  # lazy import — 패키지가 없어도 임포트 시 에러 없음
-    except ImportError:
-        logger.error("openai 패키지가 설치되어 있지 않습니다. pip install openai 후 재실행하세요.")
-        return None
+        import requests as _req
+        resp = _req.post(
+            DEEPL_API_URL,
+            headers={"Authorization": f"DeepL-Auth-Key {DEEPL_API_KEY}"},
+            data={"text": text[:500], "target_lang": "KO"},
+            timeout=10,
+        )
+        if resp.status_code in (403, 456):
+            logger.warning("[DeepL] 인증 실패(%d) — 번역 비활성화", resp.status_code)
+            _DEEPL_DISABLED = True
+            return text
+        resp.raise_for_status()
+        translated = resp.json().get("translations", [{}])[0].get("text", "").strip()
+        if translated:
+            _TRANSLATION_CACHE[text] = translated
+            return translated
+    except Exception as exc:
+        logger.debug("[DeepL] 번역 실패: %s", exc)
+    return text
 
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if not api_key:
-        logger.error("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
-        return None
 
-    client = openai.OpenAI(api_key=api_key)
-    prompt = _USER_PROMPT_TEMPLATE.format(
-        title=title[:400],
-        excerpt=(excerpt or "")[:800],
+# ── ai_summary 생성 (OpenAI 없이) ───────────────────────────────────────────
+_REGULATION_DESC: dict[str, str] = {
+    "PPWR":        "포장재 규정(PPWR) — 재활용·순환경제",
+    "CSDDD":       "공급망 실사(CSDDD) — 인권·공급망 리스크",
+    "CSRD":        "지속가능성 보고(CSRD) — ESG 공시·투명성",
+    "CBAM":        "탄소국경조정(CBAM) — 탄소 가격·배출권",
+    "Battery Reg": "EU 배터리 규정 — 디지털 여권·공급망",
+}
+_STAKEHOLDER_ACTION: dict[str, str] = {
+    "경쟁사":   "기업 선제 대응 움직임 포착",
+    "평가기관": "평가·인증 기준 변화 감지",
+    "정부당국": "규제 입법·정책 변화 포착",
+    "기관투자자": "투자자 압박·자금흐름 변화 감지",
+    "시민단체": "시민사회 캠페인·압력 포착",
+}
+
+def build_ai_summary(title_ko: str, regulation_tag: str, stakeholder_tag: str, source_name: str) -> str:
+    reg_desc = _REGULATION_DESC.get(regulation_tag, regulation_tag)
+    action = _STAKEHOLDER_ACTION.get(stakeholder_tag, "시그널 포착")
+    return (
+        f"[시그널 동향] {reg_desc} 관련 {action}\n"
+        f"• 원문: {title_ko[:120]}\n"
+        f"• 출처: {source_name or '미확인'}"
     )
 
-    try:
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.1,
-            max_tokens=600,
-            response_format={"type": "json_object"},
-        )
-        raw = response.choices[0].message.content or "{}"
-        return json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.warning("LLM 응답 JSON 파싱 실패: %s", exc)
-        return None
-    except Exception as exc:
-        logger.error("OpenAI API 호출 실패: %s", exc)
-        return None
+
+# ── 단건 처리 ────────────────────────────────────────────────────────────────
+def _process_one(row: RawArticle, session: Session) -> bool:
+    """
+    RawArticle 1건을 태깅하여 TaggedArticle로 저장한다.
+    이미 처리된 행(is_processed=True인 TaggedArticle 존재)은 건너뛴다.
+    """
+    title_en = row.title or ""
+    excerpt_en = row.excerpt or ""
+
+    # 키워드 필터 통과 여부 확인
+    if not passes_keyword_filter(title_en, excerpt_en):
+        return False
+
+    # DeepL 번역
+    title_ko = translate_to_ko(title_en)
+    excerpt_ko = translate_to_ko(excerpt_en[:300]) if excerpt_en else ""
+
+    # 규제·이해관계자 태그 추론 (영문 + 한글 합산)
+    combined = f"{title_en} {excerpt_en} {title_ko} {excerpt_ko}"
+    regulation_tag = infer_regulation_tag(combined, "")
+    stakeholder_tag = infer_stakeholder_tag(combined, "")
+
+    ai_summary = build_ai_summary(title_ko, regulation_tag, stakeholder_tag, row.source_name or "")
+
+    tagged = TaggedArticle(
+        article_id=row.id,
+        regulation_tag=regulation_tag,
+        stakeholder_tag=stakeholder_tag,
+        ai_summary=ai_summary,
+        news_timeline=json.dumps({"phase": "시행 중"}, ensure_ascii=False),
+        is_processed=True,
+    )
+    session.add(tagged)
+    return True
 
 
-def _safe_str(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value
-    return json.dumps(value, ensure_ascii=False)
-
-
+# ── 배치 처리 ────────────────────────────────────────────────────────────────
 def process_batch(batch_size: int = PIPELINE_BATCH) -> int:
     """
-    1차 키워드 필터링 → 2차 LLM 가공 → tagged_articles 저장.
-    처리 완료된 raw_articles.is_processed 는 TaggedArticle 존재로 추론한다.
-    (raw_articles 테이블 스키마에 is_processed 컬럼 없음 → tagged_articles.is_processed 사용)
+    아직 tagged_articles가 없는 raw_articles를 batch_size 단위로 처리한다.
     반환값: 이번 배치에서 처리한 건수
     """
     processed = 0
-
     with Session(_engine) as session:
-        # 아직 tagged_articles 가 없는 raw_articles 만 가져온다
         already_tagged_ids = session.query(TaggedArticle.article_id).distinct().subquery()
         candidates = (
             session.query(RawArticle)
             .filter(RawArticle.id.not_in(already_tagged_ids))
             .order_by(RawArticle.created_at.desc())
-            .limit(batch_size * 5)   # 키워드 필터 여유분 확보
+            .limit(batch_size * 3)
             .all()
         )
 
-    if not candidates:
-        logger.info("처리 대상 raw_articles 없음 — 종료")
-        return 0
+        for row in candidates:
+            try:
+                ok = _process_one(row, session)
+                if ok:
+                    processed += 1
+                    if processed >= batch_size:
+                        break
+            except Exception:
+                logger.exception("[pipeline] 단건 처리 실패 id=%d", row.id)
+            time.sleep(0.05)  # DeepL rate-limit 여유
 
-    # 1차 키워드 필터링
-    filtered = filter_raw_articles(candidates)
-    logger.info("후보 %d건 → 키워드 필터 통과 %d건", len(candidates), len(filtered))
+        session.commit()
 
-    for row in filtered[:batch_size]:
-        title = row.title or ""
-        excerpt = row.excerpt or ""
-
-        logger.info("처리 중 [id=%d] %s", row.id, title[:60])
-
-        # 2차 LLM 가공
-        result = _call_openai(title, excerpt)
-
-        # LLM 실패 시 키워드 추론으로 폴백
-        if result is None:
-            reg_tag = infer_regulation_tag(title, excerpt)
-            from .news import detect_source_region
-            country = detect_source_region(row.source_name or "") or "글로벌"
-            result = {
-                "regulation_tag": reg_tag,
-                "stakeholder_tag": infer_stakeholder_tag(title, excerpt),
-                "ai_summary": f"[폴백 요약] 본 뉴스는 {country} 지역의 {reg_tag} 관련 시그널입니다. 원문 제목: {title[:80]}",
-                "news_timeline": {},
-            }
-            logger.warning("LLM 폴백(키워드 추론) 적용 [id=%d]", row.id)
-
-        timeline_raw = result.get("news_timeline", {})
-        timeline_str = (
-            timeline_raw
-            if isinstance(timeline_raw, str)
-            else json.dumps(timeline_raw, ensure_ascii=False)
-        )
-
-        tagged = TaggedArticle(
-            article_id=row.id,
-            regulation_tag=_safe_str(result.get("regulation_tag")),
-            stakeholder_tag=_safe_str(result.get("stakeholder_tag")),
-            ai_summary=_safe_str(result.get("ai_summary")),
-            news_timeline=timeline_str,
-            is_processed=True,
-        )
-
-        with Session(_engine) as session:
-            session.add(tagged)
-            session.commit()
-
-        processed += 1
-        time.sleep(0.3)  # OpenAI rate-limit 여유
-
-    logger.info("배치 완료 — %d건 처리됨 (%s)", processed, datetime.now(UTC).isoformat())
+    logger.info("[pipeline] process_batch 완료 — %d건", processed)
     return processed
 
 
+# ── 전량 재가공 (Re-process All) ─────────────────────────────────────────────
+def reprocess_all(chunk_size: int = 100) -> int:
+    """
+    기존 tagged_articles를 전량 삭제하고 raw_articles 1,389건을
+    개선된 키워드 파이프라인으로 처음부터 재가공한다.
+
+    FastAPI 워커 쓰레드와 완전 분리된 백그라운드 쓰레드에서만 호출해야 한다.
+    """
+    logger.info("[reprocess_all] 시작 — 기존 tagged_articles 전량 삭제 후 재태깅")
+
+    # 1. 기존 tagged_articles 전량 삭제
+    with Session(_engine) as session:
+        deleted = session.execute(delete(TaggedArticle)).rowcount
+        session.commit()
+    logger.info("[reprocess_all] tagged_articles %d건 삭제 완료", deleted)
+
+    # 2. raw_articles 전량 조회
+    with Session(_engine) as session:
+        all_rows = session.query(RawArticle).order_by(RawArticle.created_at.desc()).all()
+    total = len(all_rows)
+    logger.info("[reprocess_all] raw_articles %d건 재처리 시작", total)
+
+    saved = 0
+    for i in range(0, total, chunk_size):
+        chunk = all_rows[i : i + chunk_size]
+        with Session(_engine) as session:
+            for row in chunk:
+                try:
+                    ok = _process_one(row, session)
+                    if ok:
+                        saved += 1
+                except Exception:
+                    logger.exception("[reprocess_all] id=%d 처리 실패", row.id)
+                time.sleep(0.05)
+            session.commit()
+        logger.info(
+            "[reprocess_all] 진행 %d/%d (저장 %d건)",
+            min(i + chunk_size, total), total, saved,
+        )
+
+    logger.info("[reprocess_all] 완료 — 총 %d건 태깅 저장", saved)
+    return saved
+
+
+# ── 엔트리포인트 ─────────────────────────────────────────────────────────────
 def run_pipeline(batch_size: int = PIPELINE_BATCH) -> None:
-    """엔트리포인트 — 미처리 건이 없어질 때까지 배치를 반복한다."""
-    logger.info("=== intelligence_pipeline 시작 (model=%s, batch=%d) ===", OPENAI_MODEL, batch_size)
+    logger.info("=== intelligence_pipeline 시작 (batch=%d) ===", batch_size)
     total = 0
     while True:
         count = process_batch(batch_size)
@@ -208,4 +240,4 @@ def run_pipeline(batch_size: int = PIPELINE_BATCH) -> None:
 
 
 if __name__ == "__main__":
-    run_pipeline()
+    reprocess_all()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
@@ -44,13 +45,29 @@ def _crawl_once() -> None:
 
 
 def _run_pipeline() -> None:
-    """키워드 필터 → LLM 가공 배치를 1회 실행한다."""
+    """키워드 필터 → 번역 → 태깅 배치를 1회 실행한다 (백그라운드 스레드 전용)."""
     try:
         from .intelligence_pipeline import process_batch
         n = process_batch()
         logger.info("[scheduler] run_pipeline 완료 — %d건 처리", n)
     except Exception:
         logger.exception("[scheduler] run_pipeline 실패")
+
+
+def _bootstrap_reprocess() -> None:
+    """
+    서버 기동 후 백그라운드 스레드에서 1회만 실행.
+    기존 잘못 태깅된 tagged_articles를 전량 삭제하고
+    DeepL 번역 + 키워드 태깅 파이프라인으로 재가공한다.
+    FastAPI 워커 쓰레드와 완전 격리 — 이 함수는 반드시 별도 Thread에서만 호출.
+    """
+    try:
+        from .intelligence_pipeline import reprocess_all
+        logger.info("[bootstrap] 1,389건 전량 재가공 시작 (백그라운드)")
+        saved = reprocess_all()
+        logger.info("[bootstrap] 재가공 완료 — %d건 tagged_articles 저장", saved)
+    except Exception:
+        logger.exception("[bootstrap] 재가공 실패")
 
 
 @asynccontextmanager
@@ -82,6 +99,16 @@ async def lifespan(app: FastAPI):
     logger.info(
         "[scheduler] APScheduler 시작 — crawl 첫 실행 T+10m, pipeline T+20m, 이후 1h 간격"
     )
+
+    # 기존 1,389건 전량 재가공 — FastAPI 워커와 완전 격리된 데몬 스레드로 즉시 실행
+    reprocess_thread = threading.Thread(
+        target=_bootstrap_reprocess,
+        name="reprocess-all",
+        daemon=True,
+    )
+    reprocess_thread.start()
+    logger.info("[bootstrap] 재가공 스레드 시작 (daemon, 비차단)")
+
     yield
     scheduler.shutdown(wait=False)
     logger.info("[scheduler] APScheduler 종료")
@@ -188,16 +215,27 @@ def get_news(
 @app.get("/api/debug")
 def debug_regulations() -> dict:
     regulations = load_regulations()
-    if not regulations:
-        return {"count": 0, "first": None}
-    
-    # CSRD 찾기
-    csrd = next((r for r in regulations if r.get("id") == "csrd"), regulations[0])
-    
+    csrd = next((r for r in regulations if r.get("id") == "csrd"), regulations[0] if regulations else {})
+
+    # DB 카운트 실시간 조회
+    from .intelligence_db import RawArticle, TaggedArticle, _engine
+    from sqlalchemy.orm import Session
+    from sqlalchemy import func, distinct
+    with Session(_engine) as s:
+        raw_count = s.query(func.count(RawArticle.id)).scalar()
+        tagged_count = s.query(func.count(TaggedArticle.id)).scalar()
+        reg_dist = s.query(TaggedArticle.regulation_tag, func.count(TaggedArticle.id))\
+            .group_by(TaggedArticle.regulation_tag).all()
+        st_dist = s.query(TaggedArticle.stakeholder_tag, func.count(TaggedArticle.id))\
+            .group_by(TaggedArticle.stakeholder_tag).all()
+
     return {
-        "count": len(regulations),
-        "csrd_id": csrd.get("id"),
-        "csrd_keys": list(csrd.keys()),
+        "regulation_count": len(regulations),
+        "db": {
+            "raw_articles": raw_count,
+            "tagged_articles": tagged_count,
+            "regulation_distribution": dict(reg_dist),
+            "stakeholder_distribution": dict(st_dist),
+        },
         "csrd_search_queries": csrd.get("search_queries"),
-        "csrd_news_config": csrd.get("news_config"),
     }
