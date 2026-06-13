@@ -25,21 +25,39 @@ logger = logging.getLogger(__name__)
 
 
 def _crawl_once() -> None:
-    """모든 규제 쿼리를 순회하며 raw_articles 를 적재한다."""
+    """
+    1) 규제별 Google News RSS 수집
+    2) 전문 매체 화이트리스트 직접 스크래핑 (REPORT/MARKET/EXPERT 포함)
+    """
     try:
         from .data import load_regulations as _load
-        from .news import fetch_google_news
+        from .news import fetch_google_news, fetch_full_text_scrapper
 
+        # ① Google News 규제 쿼리 수집
         regulations = _load()
-        total = 0
+        rss_total = 0
         for reg in regulations:
             for query in (reg.get("search_queries") or []):
                 articles = fetch_google_news(query)
-                total += len(articles)
-                # fetch_google_news 내부에서 upsert_raw_article 자동 호출됨
-        logger.info("[scheduler] crawl_once 완료 — %d건 수집", total)
+                rss_total += len(articles)
+        logger.info("[crawler] Google News 완료 — %d건", rss_total)
+
+        # ② 화이트리스트 전문 매체 직접 수집
+        wl_articles = fetch_full_text_scrapper()
+        logger.info("[crawler] 화이트리스트 완료 — %d건", len(wl_articles))
+
     except Exception:
-        logger.exception("[scheduler] crawl_once 실패")
+        logger.exception("[crawler] crawl_once 실패")
+
+
+def _purge_old_articles() -> None:
+    """보존 기한 만료 기사 정리 (NEWS 30일, REPORT/MARKET/EXPERT 60일)."""
+    try:
+        from .intelligence_db import purge_expired_articles
+        n = purge_expired_articles()
+        logger.info("[purge] 만료 기사 %d건 삭제", n)
+    except Exception:
+        logger.exception("[purge] 실패")
 
 
 def _run_pipeline() -> None:
@@ -110,9 +128,16 @@ async def lifespan(app: FastAPI):
         next_run_time=now + timedelta(hours=1, minutes=10),
         replace_existing=True,
     )
+    scheduler.add_job(
+        _purge_old_articles,
+        IntervalTrigger(hours=24),
+        id="purge",
+        next_run_time=now + timedelta(hours=2),
+        replace_existing=True,
+    )
     scheduler.start()
     logger.info(
-        "[scheduler] APScheduler 시작 — crawl/pipeline 첫 실행 T+1h, 이후 1h 간격"
+        "[scheduler] APScheduler 시작 — crawl T+1h / pipeline T+1h10m / purge T+2h, 각 반복"
     )
 
     # DB 비어있으면 즉시 크롤링 + 재가공 — FastAPI 워커와 완전 격리된 데몬 스레드

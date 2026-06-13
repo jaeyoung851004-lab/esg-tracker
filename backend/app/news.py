@@ -35,6 +35,120 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+# ── 산업 전문 인텔리전스 화이트리스트 ─────────────────────────────────────
+# 3개 그룹: 전문지(NEWS/EXPERT) / 로펌(REPORT) / 원자재(MARKET)
+INDUSTRIAL_MEDIA_WHITELIST: dict[str, list[dict]] = {
+    "전문지": [
+        {
+            "name": "ESG Today",
+            "domain": "esgtoday.com",
+            "rss_url": "https://esgtoday.com/feed/",
+            "scrape_url": None,
+            "country_iso": "US",
+            "article_type": "NEWS",
+        },
+        {
+            "name": "Carbon Brief",
+            "domain": "carbonbrief.org",
+            "rss_url": "https://www.carbonbrief.org/feed/",
+            "scrape_url": None,
+            "country_iso": "GB",
+            "article_type": "NEWS",
+        },
+        {
+            "name": "edie",
+            "domain": "edie.net",
+            "rss_url": "https://www.edie.net/rss/news/",
+            "scrape_url": None,
+            "country_iso": "GB",
+            "article_type": "NEWS",
+        },
+        {
+            "name": "Responsible Investor",
+            "domain": "responsible-investor.com",
+            "rss_url": None,
+            "scrape_url": "https://www.responsible-investor.com/news/",
+            "country_iso": "GB",
+            "article_type": "EXPERT",
+        },
+        {
+            "name": "Environmental Finance",
+            "domain": "environmental-finance.com",
+            "rss_url": None,
+            "scrape_url": "https://www.environmental-finance.com/news.html",
+            "country_iso": "GB",
+            "article_type": "EXPERT",
+        },
+    ],
+    "로펌": [
+        {
+            "name": "Linklaters",
+            "domain": "linklaters.com",
+            "rss_url": None,
+            "scrape_url": "https://www.linklaters.com/en/insights/publications?topic=sustainability",
+            "country_iso": "GB",
+            "article_type": "REPORT",
+        },
+        {
+            "name": "Norton Rose Fulbright",
+            "domain": "nortonrosefulbright.com",
+            "rss_url": None,
+            "scrape_url": "https://www.nortonrosefulbright.com/en/knowledge/publications?topic=esg",
+            "country_iso": "GB",
+            "article_type": "REPORT",
+        },
+        {
+            "name": "White & Case",
+            "domain": "whitecase.com",
+            "rss_url": None,
+            "scrape_url": "https://www.whitecase.com/insights/hot-topics/esg",
+            "country_iso": "US",
+            "article_type": "REPORT",
+        },
+        {
+            "name": "Freshfields",
+            "domain": "freshfields.com",
+            "rss_url": None,
+            "scrape_url": "https://www.freshfields.com/en-gb/latest-thinking/?topic=ESG",
+            "country_iso": "GB",
+            "article_type": "REPORT",
+        },
+    ],
+    "원자재": [
+        {
+            "name": "Reuters Environment",
+            "domain": "reuters.com",
+            "rss_url": "https://feeds.reuters.com/reuters/environment",
+            "scrape_url": None,
+            "country_iso": "US",
+            "article_type": "NEWS",
+        },
+        {
+            "name": "Fastmarkets",
+            "domain": "fastmarkets.com",
+            "rss_url": None,
+            "scrape_url": "https://www.fastmarkets.com/insights/",
+            "country_iso": "GB",
+            "article_type": "MARKET",
+        },
+        {
+            "name": "S&P Global Commodity",
+            "domain": "spglobal.com",
+            "rss_url": None,
+            "scrape_url": "https://www.spglobal.com/commodityinsights/en/market-insights/latest-news",
+            "country_iso": "US",
+            "article_type": "MARKET",
+        },
+    ],
+}
+
+# 화이트리스트 도메인 → ISO-2 오버라이드 (언어 무관)
+_WHITELIST_DOMAIN_TO_ISO: dict[str, str] = {
+    entry["domain"]: entry["country_iso"]
+    for entries in INDUSTRIAL_MEDIA_WHITELIST.values()
+    for entry in entries
+}
+
 KNOWN_MEDIA_REGION_RULES = (
     ("mpr china certification", "중국"),
     ("the astana times", "카자흐스탄"),
@@ -916,6 +1030,154 @@ def fetch_articles_by_query(
                 print(f"RSS query worker error '{query}': {e}")
                 articles_by_query[query] = []
     return articles_by_query
+
+
+def _scrape_rss_entry(item: dict, source_name: str, article_type: str) -> dict | None:
+    """feedparser 엔트리 → 표준 article dict 변환."""
+    published_raw = item.get("published", "") or item.get("updated", "")
+    published_at = parse_published_at(published_raw)
+    title = normalize_title(item.get("title", ""))
+    url = item.get("link", "")
+    if not title or not url:
+        return None
+    summary = re.sub(r"<[^>]+>", "", item.get("summary", "") or "")
+    summary = normalize_whitespace(summary)
+    feed_source = (item.get("source") or {}).get("title", "") or source_name
+    return {
+        "title": title,
+        "summary": summary[:500],
+        "url": url,
+        "source": feed_source,
+        "sourceUrl": url,
+        "publishedAt": published_at or datetime.now(UTC),
+        "article_type": article_type,
+    }
+
+
+def _lxml_available() -> bool:
+    try:
+        import lxml  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _scrape_whitelist_rss(entry: dict, cutoff: datetime) -> list[dict]:
+    """RSS 피드 직접 파싱 → article dict 목록."""
+    try:
+        resp = requests.get(
+            entry["rss_url"], headers=HEADERS, timeout=RSS_REQUEST_TIMEOUT_SECONDS
+        )
+        resp.raise_for_status()
+        feed = feedparser.parse(resp.content)
+        results: list[dict] = []
+        for item in feed.entries[:25]:
+            art = _scrape_rss_entry(dict(item), entry["name"], entry["article_type"])
+            if not art:
+                continue
+            pub = art.get("publishedAt")
+            if pub and pub < cutoff:
+                continue
+            results.append(art)
+        return results
+    except Exception as exc:
+        print(f"[whitelist-rss] {entry['name']} 오류: {exc}")
+        return []
+
+
+def _scrape_whitelist_html(entry: dict) -> list[dict]:
+    """BeautifulSoup HTML 스크래핑 (lxml 우선, html.parser 폴백)."""
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        print(f"[whitelist-html] beautifulsoup4 미설치 — {entry['name']} 스킵")
+        return []
+    try:
+        resp = requests.get(
+            entry["scrape_url"],
+            headers={**HEADERS, "Accept": "text/html,application/xhtml+xml,*/*;q=0.9"},
+            timeout=12,
+        )
+        resp.raise_for_status()
+        parser = "lxml" if _lxml_available() else "html.parser"
+        soup = BeautifulSoup(resp.text, parser)
+
+        results: list[dict] = []
+        seen_urls: set[str] = set()
+        base_parts = entry["scrape_url"].split("/")[:3]
+        base_url = "/".join(base_parts)
+
+        for heading in soup.find_all(["h2", "h3", "h4"], limit=40):
+            a = heading.find("a", href=True)
+            if not a:
+                continue
+            href: str = a.get("href", "")
+            if not href:
+                continue
+            if href.startswith("/"):
+                href = base_url + href
+            elif not href.startswith("http"):
+                continue
+            if href in seen_urls or len(href) < 20:
+                continue
+            seen_urls.add(href)
+
+            title = normalize_title(
+                a.get_text(strip=True) or heading.get_text(strip=True)
+            )
+            if not title or len(title) < 10:
+                continue
+
+            excerpt = ""
+            next_p = heading.find_next_sibling("p") or heading.find_next("p")
+            if next_p:
+                excerpt = next_p.get_text(strip=True)[:400]
+
+            results.append({
+                "title": title,
+                "summary": excerpt,
+                "url": href,
+                "source": entry["name"],
+                "sourceUrl": href,
+                "publishedAt": datetime.now(UTC),
+                "article_type": entry["article_type"],
+            })
+            if len(results) >= 15:
+                break
+
+        return results
+    except Exception as exc:
+        print(f"[whitelist-html] {entry['name']} 오류: {exc}")
+        return []
+
+
+def fetch_full_text_scrapper(lookback_days: int = LOOKBACK_DAYS) -> list[dict]:
+    """
+    전문 매체 화이트리스트 기반 직접 수집 엔진.
+    - RSS 보유 매체: feedparser 직접 파싱  [NEWS/MARKET]
+    - RSS 미보유 매체: BeautifulSoup HTML 스크래핑  [REPORT/EXPERT]
+    수집된 기사에 article_type 태그 주입 후 upsert_raw_article 저장.
+    """
+    cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
+    all_articles: list[dict] = []
+
+    for group_name, entries in INDUSTRIAL_MEDIA_WHITELIST.items():
+        for entry in entries:
+            if entry.get("rss_url"):
+                articles = _scrape_whitelist_rss(entry, cutoff)
+            elif entry.get("scrape_url"):
+                articles = _scrape_whitelist_html(entry)
+            else:
+                continue
+
+            for art in articles:
+                upsert_raw_article(art)
+            all_articles.extend(articles)
+            print(
+                f"[whitelist] {group_name}/{entry['name']} → {len(articles)}건 수집"
+            )
+
+    return all_articles
 
 
 def build_news_item(

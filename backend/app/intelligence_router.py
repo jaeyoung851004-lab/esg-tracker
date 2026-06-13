@@ -119,6 +119,7 @@ class NewsroomArticle(BaseModel):
     regulation: str
     stakeholder: str
     ai_summary: str
+    article_type: str
 
 
 class NewsroomResponse(BaseModel):
@@ -300,6 +301,7 @@ def get_newsroom(
     regulation: str | None = Query(default=None, description="규제 태그 필터 (예: CSRD)"),
     stakeholder: str | None = Query(default=None, description="이해관계자 태그 필터"),
     country: str | None = Query(default=None, description="ISO-2 국가 코드 필터"),
+    article_type: str | None = Query(default=None, description="유형 필터: NEWS/REPORT/MARKET/EXPERT"),
     days: int = Query(default=30, ge=1, le=365, description="조회 기간(일)"),
     limit: int = Query(default=500, ge=1, le=1000, description="최대 반환 건수"),
 ) -> NewsroomResponse:
@@ -319,6 +321,8 @@ def get_newsroom(
             q = q.filter(TaggedArticle.regulation_tag == regulation)
         if stakeholder:
             q = q.filter(TaggedArticle.stakeholder_tag == stakeholder)
+        if article_type:
+            q = q.filter(RawArticle.article_type == article_type.upper())
         pairs = q.order_by(RawArticle.created_at.desc()).limit(limit * 2).all()
 
     articles: list[NewsroomArticle] = []
@@ -338,6 +342,7 @@ def get_newsroom(
                 regulation=tagged.regulation_tag or "",
                 stakeholder=tagged.stakeholder_tag or "",
                 ai_summary=tagged.ai_summary or "",
+                article_type=getattr(raw, "article_type", "NEWS") or "NEWS",
             )
         )
         if len(articles) >= limit:

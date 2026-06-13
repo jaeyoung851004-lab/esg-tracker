@@ -57,6 +57,7 @@ interface NRArticle {
   regulation: string;
   stakeholder: string;
   ai_summary: string;
+  article_type: string;
 }
 
 type SortKey = "date" | "regulation" | "country_iso" | "stakeholder" | "source";
@@ -91,10 +92,18 @@ export default function NewsroomPage() {
 
   const [filterReg, setFilterReg] = useState<string | null>(null);
   const [filterSt, setFilterSt] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortCol, setSortCol] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const ARTICLE_TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+    NEWS:   { label: "뉴스",       color: T.blueTxt,  bg: T.blueBg },
+    REPORT: { label: "로펌 리포트", color: "#a78bfa",  bg: "rgba(139,92,246,0.15)" },
+    MARKET: { label: "원자재 동향", color: T.amber,    bg: T.amberBg },
+    EXPERT: { label: "전문가 분석", color: T.green,    bg: T.greenBg },
+  };
 
   useEffect(() => {
     fetch(`${API_BASE}/api/v1/intelligence/newsroom?days=30&limit=500`)
@@ -123,6 +132,7 @@ export default function NewsroomPage() {
     let rows = articles;
     if (filterReg) rows = rows.filter((r) => r.regulation === filterReg);
     if (filterSt) rows = rows.filter((r) => r.stakeholder === filterSt);
+    if (filterType) rows = rows.filter((r) => r.article_type === filterType);
     if (search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter(
@@ -170,7 +180,7 @@ export default function NewsroomPage() {
     );
   }
 
-  const anyFilter = filterReg || filterSt || search;
+  const anyFilter = filterReg || filterSt || filterType || search;
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg0, color: T.txt, fontFamily: "'Inter', sans-serif", display: "flex", flexDirection: "column" }}>
@@ -238,7 +248,13 @@ export default function NewsroomPage() {
               onClick={() => setFilterReg(filterReg === r ? null : r)} />
           );
         })}
-        <span style={{ color: T.txt3, fontSize: 10, marginLeft: 4 }}>유형</span>
+        <span style={{ color: T.txt3, fontSize: 10, marginLeft: 4 }}>소스유형</span>
+        {Object.entries(ARTICLE_TYPE_LABELS).map(([key, v]) => (
+          <FilterChip key={key} label={v.label} active={filterType === key}
+            color={v.color} bg={v.bg}
+            onClick={() => setFilterType(filterType === key ? null : key)} />
+        ))}
+        <span style={{ color: T.txt3, fontSize: 10, marginLeft: 4 }}>이해관계자</span>
         {stTags.map((s) => {
           const c = ST_BADGE[s] ?? { bg: T.bg3, color: T.txt2 };
           return (
@@ -249,7 +265,7 @@ export default function NewsroomPage() {
         })}
         {anyFilter && (
           <button
-            onClick={() => { setFilterReg(null); setFilterSt(null); setSearch(""); }}
+            onClick={() => { setFilterReg(null); setFilterSt(null); setFilterType(null); setSearch(""); }}
             style={{
               padding: "3px 10px", borderRadius: 20,
               border: `1px solid ${T.border}`, background: "transparent",
