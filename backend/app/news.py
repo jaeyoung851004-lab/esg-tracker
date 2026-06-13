@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 import feedparser
 import requests
+from .intelligence_db import upsert_raw_article
 
 LOOKBACK_DAYS = 30
 MAX_RSS_ENTRIES_PER_QUERY = 50
@@ -880,6 +881,7 @@ def fetch_google_news(query: str, lookback_days: int = LOOKBACK_DAYS) -> list[Ra
                     continue
                 seen_article_keys.add(article_key)
                 articles.append(article)
+                upsert_raw_article(article)  # dual-write hook → raw_articles
 
     if articles or not had_request_error:
         _cache_set(_QUERY_ARTICLE_CACHE, cache_key, articles)
