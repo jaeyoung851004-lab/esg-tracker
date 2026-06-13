@@ -9,6 +9,7 @@ import {
   getSignalStats,
   getSignalsByRegId,
 } from "@/lib/marketSignals";
+import { IntelligencePanel } from "@/components/IntelligencePanel";
 import {
   calculateTrackingDDay,
   formatTrackingDateLabel,
@@ -599,6 +600,11 @@ export default async function DashboardPage() {
               </div>
             </div>
           </section>
+
+          {/* ─────────────────────────────────────────
+               인텔리전스 패널 (백엔드 동적 연동)
+               ───────────────────────────────────────── */}
+          <IntelligencePanel />
 
           {/* 주요 최신 뉴스 */}
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
