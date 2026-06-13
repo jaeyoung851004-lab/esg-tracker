@@ -38,6 +38,7 @@ class RawArticle(_Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     url_hash = Column(String(64), nullable=False, unique=True)
+    original_url = Column(String(2048), nullable=True)
     title = Column(String(512))
     excerpt = Column(Text)
     lang = Column(String(16))
@@ -75,6 +76,7 @@ def _run_migrations() -> None:
         "ALTER TABLE raw_articles ADD COLUMN article_type VARCHAR(16) NOT NULL DEFAULT 'NEWS'",
         "ALTER TABLE raw_articles ADD COLUMN retained_until DATETIME",
         "ALTER TABLE tagged_articles ADD COLUMN tagging_confidence REAL NOT NULL DEFAULT 0.6",
+        "ALTER TABLE raw_articles ADD COLUMN original_url VARCHAR(2048)",
     ]
     with _engine.begin() as conn:
         for stmt in migrations:
@@ -122,6 +124,7 @@ def upsert_raw_article(article: dict) -> None:
                 sqlite_insert(RawArticle.__table__)
                 .values(
                     url_hash=url_hash,
+                    original_url=url,
                     title=article.get("title", ""),
                     excerpt=article.get("summary", ""),
                     lang="en",

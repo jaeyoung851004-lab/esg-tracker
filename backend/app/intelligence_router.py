@@ -114,6 +114,7 @@ class NewsroomArticle(BaseModel):
     date: str
     title: str
     source: str
+    original_url: str | None
     country_iso: str
     country_name: str
     regulation: str
@@ -350,6 +351,7 @@ def get_newsroom(
                 date=date_str,
                 title=raw.title or "",
                 source=raw.source_name or "",
+                original_url=getattr(raw, "original_url", None),
                 country_iso=iso,
                 country_name=iso_to_display_name(iso),
                 regulation=tagged.regulation_tag or "",
@@ -368,3 +370,70 @@ def get_newsroom(
         regulation_tags=_REGULATION_TAGS,
         stakeholder_tags=_STAKEHOLDER_TAGS,
     )
+
+
+@router.post("/reprocess")
+def trigger_reprocess() -> dict:
+    """
+    tagged_articles 전량 재태깅을 백그라운드 스레드로 즉시 실행한다.
+    `python manage.py reprocess_all` 대체 엔드포인트.
+    """
+    import threading
+    from .intelligence_pipeline import reprocess_all
+
+    def _run():
+        try:
+            saved = reprocess_all()
+            logger.info("[reprocess] HTTP 트리거 완료 — %d건 저장", saved)
+        except Exception:
+            logger.exception("[reprocess] 실패")
+
+    t = threading.Thread(target=_run, name="http-reprocess", daemon=True)
+    t.start()
+    return {"status": "started", "message": "재태깅 백그라운드 시작. /api/debug 에서 진행 상황 확인 가능"}
+
+
+@router.get("/data-health")
+def data_health() -> dict:
+    """데이터 신선도·품질 진단 엔드포인트."""
+    from datetime import timedelta
+    from sqlalchemy import func
+    from collections import Counter
+
+    now = datetime.now(UTC)
+    since_30d = now - timedelta(days=30)
+
+    with Session(_engine) as session:
+        raw_total = session.query(func.count(RawArticle.id)).scalar()
+        raw_30d = session.query(func.count(RawArticle.id)).filter(RawArticle.created_at >= since_30d).scalar()
+        tagged_total = session.query(func.count(TaggedArticle.id)).scalar()
+
+        # original_url 적재율
+        url_filled = session.query(func.count(RawArticle.id)).filter(
+            RawArticle.original_url.isnot(None),
+            RawArticle.original_url != ""
+        ).scalar()
+
+        # 규제별 분포
+        reg_rows = session.query(TaggedArticle.regulation_tag, func.count(TaggedArticle.id))\
+            .group_by(TaggedArticle.regulation_tag).all()
+
+        # 신뢰도 분포
+        conf_rows = session.query(TaggedArticle.tagging_confidence).all()
+
+    confs = [r[0] for r in conf_rows if r[0] is not None]
+    conf_dist = {
+        "high_ge_0.8": sum(1 for c in confs if c >= 0.8),
+        "mid_0.5_0.79": sum(1 for c in confs if 0.5 <= c < 0.8),
+        "low_lt_0.5": sum(1 for c in confs if c < 0.5),
+    }
+
+    return {
+        "timestamp": _now_iso(),
+        "raw_articles": {"total": raw_total, "last_30d": raw_30d},
+        "tagged_articles": tagged_total,
+        "original_url_filled": url_filled,
+        "original_url_fill_rate_pct": round(url_filled / max(raw_total, 1) * 100, 1),
+        "regulation_distribution": dict(reg_rows),
+        "confidence_distribution": conf_dist,
+    }

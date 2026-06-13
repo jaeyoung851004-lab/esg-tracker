@@ -52,6 +52,7 @@ interface NRArticle {
   date: string;
   title: string;
   source: string;
+  original_url: string | null;
   country_iso: string;
   country_name: string;
   regulation: string;
@@ -403,7 +404,26 @@ export default function NewsroomPage() {
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         maxWidth: 0,
                       }}>
-                        {row.title}
+                        <span
+                          role="link"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (row.original_url) {
+                              window.open(row.original_url, "_blank", "noopener,noreferrer");
+                            } else {
+                              alert("원본 URL 미확인 — 다음 크롤 사이클 후 갱신됩니다");
+                            }
+                          }}
+                          style={{
+                            cursor: "pointer",
+                            color: T.lime,
+                            textDecoration: "underline",
+                            textDecorationStyle: "dotted",
+                          }}
+                          title={row.original_url ?? "원본 URL 미확인"}
+                        >
+                          {row.title}
+                        </span>
                       </td>
                       <td style={{
                         padding: "7px 10px", fontSize: 11, color: T.txt2,
@@ -417,6 +437,20 @@ export default function NewsroomPage() {
                         <td colSpan={6} style={{ padding: "8px 10px 12px 20px", background: T.bg3 }}>
                           <div style={{ fontSize: 11, color: T.txt2, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
                             {row.ai_summary || row.title}
+                          </div>
+                          <div style={{ marginTop: 6 }}>
+                            {row.original_url ? (
+                              <a
+                                href={row.original_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontSize: 11, color: T.lime, textDecoration: "underline" }}
+                              >
+                                원본 기사 열기 →
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: 11, color: T.txt3 }}>원본 URL 미확인 (다음 크롤 갱신)</span>
+                            )}
                           </div>
                         </td>
                       </tr>

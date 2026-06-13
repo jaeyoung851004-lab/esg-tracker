@@ -171,6 +171,30 @@ REGULATION_KEYWORDS: dict[str, list[str]] = {
         "탄소세", "탄소가격", "탄소배출권",
         "배출권거래", "탄소중립 정책",
     ],
+    # ── 신규 3종 규제 (2026 우선순위) ────────────────────────────────────
+    "CA_Climate": [
+        "california climate", "california ab 1305", "california sb 253", "california sb 261",
+        "california climate accountability", "california climate disclosure",
+        "carb regulation", "california air resources board",
+        "california greenhouse gas", "california net zero",
+        "sec climate disclosure", "sec climate rule",
+        "us climate disclosure rule", "scope 3 sec",
+        # 한글
+        "캘리포니아 기후", "미국 기후공시", "sec 기후규제",
+    ],
+    "IMO_Reg": [
+        "imo regulation", "international maritime organization",
+        "imo 2030", "imo 2050", "imo decarbonization",
+        "shipping decarbonization", "maritime decarbonization",
+        "imo ghg strategy", "imo carbon intensity",
+        "cii rating", "carbon intensity indicator",
+        "eexi", "enhanced ship energy efficiency",
+        "maritime emission", "shipping emission",
+        "lng shipping", "ammonia shipping", "hydrogen shipping",
+        "green shipping", "fuel eu maritime",
+        # 한글
+        "국제해사기구", "해운 탈탄소", "해운 규제", "선박 배출", "해운 온실가스",
+    ],
 }
 
 # ── 가로축: 이해관계자 키워드 ─────────────────────────────────────────────
@@ -289,17 +313,26 @@ def passes_keyword_filter(title: str, excerpt: str) -> bool:
     return _has_any_keyword(combined, _ALL_FLAT)
 
 
+# 신규 규제 1.5배 가중치 (2026 우선순위 지정 규제)
+_PRIORITY_REGULATIONS: frozenset[str] = frozenset({"CA_Climate", "IMO_Reg", "ESPR"})
+_PRIORITY_WEIGHT = 1.5
+
+
 def infer_regulation_tag(title: str, excerpt: str) -> str:
     """
-    15대 규제 태그를 키워드 빈도 기반으로 추론.
-    매칭 없으면 CSRD(광범위 공시 규제)로 귀속.
+    17대 규제 태그를 키워드 빈도 기반으로 추론.
+    CA_Climate / IMO_Reg / ESPR 에 1.5배 가중치 적용.
+    매칭 점수 0이면 CSRD 기본값 대신 'CSRD'를 반환하되,
+    CSRD 자체 키워드 매칭이 없으면 passes_keyword_filter 가 이미 걸러냄.
     """
     combined = _normalize(f"{title} {excerpt}")
-    best_tag, best_count = "CSRD", 0
+    best_tag, best_score = "CSRD", 0.0
     for tag, keywords in REGULATION_KEYWORDS.items():
-        count = sum(1 for kw in keywords if kw.lower() in combined)
-        if count > best_count:
-            best_tag, best_count = tag, count
+        raw = sum(1 for kw in keywords if kw.lower() in combined)
+        weight = _PRIORITY_WEIGHT if tag in _PRIORITY_REGULATIONS else 1.0
+        score = raw * weight
+        if score > best_score:
+            best_tag, best_score = tag, score
     return best_tag
 
 
@@ -335,6 +368,8 @@ REGULATION_CONTEXT_KEYWORDS: dict[str, list[str]] = {
     "KSSB": ["sustainability", "reporting", "korea", "standard", "한국", "공시"],
     "RE100": ["renewable energy", "re100", "clean energy", "ppa", "재생에너지"],
     "Carbon Cost Policy": ["carbon", "emission", "climate", "ets", "탄소", "배출"],
+    "CA_Climate": ["california", "ab 1305", "sb 253", "sb 261", "sec climate", "carb", "캘리포니아", "sec"],
+    "IMO_Reg": ["imo", "maritime", "shipping", "vessel", "seafarer", "해운", "선박", "국제해사"],
 }
 
 # 소스 유형별 기본 신뢰도 (사용자 지정값 RSS=0.6, 직접크롤=0.9 기반)
