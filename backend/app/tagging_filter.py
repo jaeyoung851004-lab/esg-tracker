@@ -304,32 +304,37 @@ def infer_regulation_tag(title: str, excerpt: str) -> str:
     """
     17대 규제 태그를 키워드 빈도 기반으로 추론.
     CA_Climate / IMO_Reg / ESPR 에 1.5배 가중치 적용.
-    매칭 점수 0이면 CSRD 기본값 대신 'CSRD'를 반환하되,
-    CSRD 자체 키워드 매칭이 없으면 passes_keyword_filter 가 이미 걸러냄.
+    매칭 점수 0이면 매트릭스 통계에서 제외되도록 'unclassified'를 반환.
     """
     combined = _normalize(f"{title} {excerpt}")
-    best_tag, best_score = "CSRD", 0.0
+    best_tag, best_score = "unclassified", 0.0
     for tag, keywords in REGULATION_KEYWORDS.items():
         raw = sum(1 for kw in keywords if kw.lower() in combined)
         weight = _PRIORITY_WEIGHT if tag in _PRIORITY_REGULATIONS else 1.0
         score = raw * weight
         if score > best_score:
             best_tag, best_score = tag, score
-    return best_tag
+    result = best_tag if best_score > 0.0 else "unclassified"
+    if result == "unclassified":
+        print(f"[tagging] unclassified: {title[:60]}")
+    return result
 
 
 def infer_stakeholder_tag(title: str, excerpt: str) -> str:
     """
     이해관계자 태그를 키워드 빈도 기반으로 추론.
-    매칭 없으면 '정부당국'으로 귀속.
+    매칭 없으면 매트릭스 통계에서 제외되도록 'unclassified'를 반환.
     """
     combined = _normalize(f"{title} {excerpt}")
-    best_tag, best_count = "정부당국", 0
+    best_tag, best_count = "unclassified", 0
     for tag, keywords in STAKEHOLDER_KEYWORDS.items():
         count = sum(1 for kw in keywords if kw.lower() in combined)
         if count > best_count:
             best_tag, best_count = tag, count
-    return best_tag
+    result = best_tag if best_count > 0 else "unclassified"
+    if result == "unclassified":
+        print(f"[tagging] unclassified: {title[:60]}")
+    return result
 
 
 # ── 규제별 컨텍스트 확인 키워드 (최소 1개 이상 필요) ──────────────────────

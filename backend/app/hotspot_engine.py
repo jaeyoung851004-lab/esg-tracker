@@ -265,6 +265,10 @@ def get_matrix_signal_counts(
                 TaggedArticle.stakeholder_tag,
                 func.count(func.distinct(TaggedArticle.article_id)),
             )
+            .filter(
+                TaggedArticle.regulation_tag != "unclassified",
+                TaggedArticle.stakeholder_tag != "unclassified",
+            )
             .group_by(
                 TaggedArticle.regulation_tag,
                 TaggedArticle.stakeholder_tag,

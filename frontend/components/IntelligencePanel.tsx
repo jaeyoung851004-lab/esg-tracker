@@ -150,11 +150,25 @@ interface DetailArticle {
   timeline: TimelineEvent;
 }
 interface DetailResponse {
+  generated_at: string;
   regulation: string | null;
   country_iso: string | null;
   stakeholder: string | null;
   total: number;
   articles: DetailArticle[];
+}
+interface NewsFallbackItem {
+  title: string;
+  summary?: string;
+  source?: string;
+  publishedAt?: string;
+  regulationId?: string;
+  actorType?: string;
+  reactionType?: string;
+  newsType?: string;
+}
+interface NewsFallbackResponse {
+  items?: NewsFallbackItem[];
 }
 interface DrawerQuery {
   regulation?: string;
@@ -162,6 +176,20 @@ interface DrawerQuery {
   stakeholder?: string;
   label: string;
 }
+
+const NEWS_REGULATION_ID_BY_TAG: Record<string, string> = {
+  ESPR: "espr",
+  PPWR: "ppwr",
+  CSDDD: "csddd",
+  CSRD: "csrd",
+  CBAM: "cbam",
+  EUDR: "eudr",
+  GCD: "green_claims",
+  "AI Act": "eu_ai_act",
+  "Battery Reg": "battery_reg",
+  DPP: "dpp",
+  ELV: "eu_elv",
+};
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────
 function fmtPct(n: number) {
@@ -174,6 +202,37 @@ function fmtDate(iso?: string | null) {
   } catch {
     return iso.slice(0, 10);
   }
+}
+function buildNewsFallbackUrl(q: DrawerQuery) {
+  const params = new URLSearchParams({ limit: "10" });
+  if (q.regulation && NEWS_REGULATION_ID_BY_TAG[q.regulation]) {
+    params.set("regulation_id", NEWS_REGULATION_ID_BY_TAG[q.regulation]);
+  }
+  return `/api/news?${params.toString()}`;
+}
+function toFallbackDetailResponse(q: DrawerQuery, feed: NewsFallbackResponse): DetailResponse {
+  const articles = (feed.items ?? []).slice(0, 10).map((item, index) => ({
+    id: -1 - index,
+    title: item.title || "",
+    excerpt: item.summary || "",
+    source_name: item.source || "",
+    created_at: item.publishedAt || new Date().toISOString(),
+    regulation_tag: q.regulation || item.regulationId || "",
+    stakeholder_tag: q.stakeholder || item.actorType || "",
+    ai_summary: item.summary || item.title || "",
+    timeline: {
+      phase: item.reactionType || item.newsType || "뉴스 API 폴백",
+      key_actors: item.actorType ? [item.actorType] : [],
+    },
+  }));
+  return {
+    generated_at: new Date().toISOString(),
+    regulation: q.regulation ?? null,
+    country_iso: q.country ?? null,
+    stakeholder: q.stakeholder ?? null,
+    total: articles.length,
+    articles,
+  };
 }
 
 // ── 글로벌 핫스팟 SVG 맵 ────────────────────────────────────────────────
@@ -373,10 +432,14 @@ function SignalMatrix({
         <tbody>
           {data.regulation_tags.map((reg) => {
             const chip = regChip(reg);
+            const rowTotal = data.cells
+              .filter((c) => c.regulation_tag === reg)
+              .reduce((sum, c) => sum + c.count, 0);
+            const regColor = rowTotal === 0 ? T.txt3 : chip.color;
             return (
               <tr key={reg} style={{ cursor: "default" }}>
                 <td style={{ padding: "3px 4px", verticalAlign: "middle" }}>
-                  <div style={{ fontSize: 11, fontWeight: 500, color: chip.color, lineHeight: 1.2 }}>{reg}</div>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: regColor, lineHeight: 1.2 }}>{reg}</div>
                 </td>
                 {data.stakeholder_tags.map((st) => {
                   const cell = data.cells.find((c) => c.regulation_tag === reg && c.stakeholder_tag === st);
@@ -504,7 +567,7 @@ function DetailDrawer({
           top: 0,
           zIndex: 50,
           height: "100%",
-          width: open ? 268 : 0,
+          width: open ? 420 : 0,
           overflow: "hidden",
           background: T.bg1,
           borderLeft: `1px solid ${T.border}`,
@@ -514,8 +577,8 @@ function DetailDrawer({
       >
         <div
           style={{
-            padding: "18px 14px",
-            width: 268,
+            padding: "22px 20px",
+            width: 420,
             overflowY: "auto",
             height: "100%",
           }}
@@ -545,7 +608,7 @@ function DetailDrawer({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 5,
-                  fontSize: 9,
+                  fontSize: 10,
                   fontWeight: 500,
                   padding: "3px 8px",
                   borderRadius: 10,
@@ -557,7 +620,7 @@ function DetailDrawer({
                 ⚡ 인텔리전스 보고서
               </div>
 
-              <div style={{ fontSize: 14, fontWeight: 500, color: T.txt, lineHeight: 1.35, marginBottom: 3 }}>
+              <div style={{ fontSize: 18, fontWeight: 500, color: T.txt, lineHeight: 1.35, marginBottom: 3 }}>
                 {query.label}
               </div>
               {data && (
@@ -580,15 +643,22 @@ function DetailDrawer({
           {!loading && (!data || data.articles.length === 0) && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 120, color: T.txt3, fontSize: 11, gap: 6, textAlign: "center" }}>
               <span style={{ fontSize: 24 }}>📭</span>
-              <p>LLM 파이프라인 실행 후</p>
-              <p>데이터가 표시됩니다.</p>
+              <p>현재 매칭된 뉴스 API 후보가 없습니다.</p>
+              {query && (
+                <a
+                  href={buildNewsFallbackUrl(query)}
+                  style={{ color: T.lime, textDecoration: "underline", textDecorationStyle: "dotted" }}
+                >
+                  뉴스 API 원문 후보 열기
+                </a>
+              )}
             </div>
           )}
 
           {!loading && data && data.articles.map((article, idx) => {
             const badge = artBadge(article);
             return (
-              <div key={article.id} style={{ marginBottom: 18 }}>
+              <div key={article.id} style={{ marginBottom: 24 }}>
                 {/* AI 3줄 요약 박스 (첫 번째 아티클) */}
                 {idx === 0 && article.ai_summary && (
                   <div
@@ -596,14 +666,14 @@ function DetailDrawer({
                       background: "rgba(212,255,109,0.06)",
                       border: `1px solid ${T.limeBorder}`,
                       borderRadius: 8,
-                      padding: 12,
+                      padding: 16,
                       marginBottom: 12,
                     }}
                   >
                     <div style={{ fontSize: 9, fontWeight: 500, color: T.lime, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
                       ✨ AI 시장 동향 요약
                     </div>
-                    <div style={{ fontSize: 11, color: "rgba(220,245,255,0.8)", lineHeight: 1.7 }}>
+                    <div style={{ fontSize: 13, color: "rgba(220,245,255,0.8)", lineHeight: 1.8 }}>
                       {article.ai_summary.split("\n").filter(Boolean).map((line, i) => (
                         <p key={i}>{line.startsWith("•") ? line : `• ${line}`}</p>
                       ))}
@@ -631,18 +701,18 @@ function DetailDrawer({
                       top: 4,
                     }}
                   />
-                  <div style={{ fontSize: 9, color: T.txt3, marginBottom: 2 }}>
+                  <div style={{ fontSize: 11, color: T.txt3, marginBottom: 2 }}>
                     {fmtDate(article.created_at) ?? ""}
                   </div>
-                  <div style={{ fontSize: 11, color: T.txt, lineHeight: 1.5, marginBottom: 2 }}>
+                  <div style={{ fontSize: 13, color: T.txt, lineHeight: 1.5, marginBottom: 2 }}>
                     {article.title}
                   </div>
-                  <div style={{ fontSize: 9, color: T.txt3 }}>
+                  <div style={{ fontSize: 11, color: T.txt3 }}>
                     {article.source_name}
                     <span
                       style={{
                         display: "inline-block",
-                        fontSize: 8,
+                        fontSize: 10,
                         padding: "1px 5px",
                         borderRadius: 5,
                         marginLeft: 3,
@@ -707,6 +777,18 @@ export function IntelligencePanel() {
     if (q.stakeholder) params.set("stakeholder", q.stakeholder);
     fetch(`${API_BASE}/api/v1/intelligence/detail?${params}`)
       .then((r) => (r.ok ? r.json() : null))
+      .then(async (detail: DetailResponse | null) => {
+        if (detail?.articles?.length) return detail;
+        try {
+          const fallback = await fetch(buildNewsFallbackUrl(q), { cache: "no-store" });
+          if (!fallback.ok) return detail;
+          const feed = (await fallback.json()) as NewsFallbackResponse;
+          const fallbackDetail = toFallbackDetailResponse(q, feed);
+          return fallbackDetail.articles.length > 0 ? fallbackDetail : detail;
+        } catch {
+          return detail;
+        }
+      })
       .then(setDrawerData)
       .catch(() => setDrawerData(null))
       .finally(() => setDrawerLoading(false));
@@ -716,9 +798,12 @@ export function IntelligencePanel() {
 
   const handleCellClick = useCallback(
     (reg: string, st: string, _cell?: MatrixCell) => {
-      // 매트릭스 셀 클릭 → 뉴스룸으로 동일 필터 연동
-      const params = new URLSearchParams({ regulation: reg, stakeholder: st });
-      window.location.href = `/newsroom?${params.toString()}`;
+      console.log("cell clicked", reg, st);
+      openDrawer({
+        regulation: reg,
+        stakeholder: st,
+        label: `${reg} × ${st}`,
+      });
     },
     [openDrawer]
   );
@@ -934,12 +1019,9 @@ export function IntelligencePanel() {
                   {matrixLoading ? "..." : `${totalSignals ?? 0}건 집계`}
                 </span>
               </div>
-              <div
-                role="button"
-                onClick={() => { window.location.href = "/newsroom"; }}
-                style={{ fontSize: 22, fontWeight: 500, color: T.txt, cursor: "pointer" }}
-                title="뉴스룸에서 전체 보기"
-              >{matrixLoading ? "—" : (totalSignals ?? 0)}</div>
+              <div style={{ fontSize: 22, fontWeight: 500, color: T.txt }}>
+                {matrixLoading ? "—" : (totalSignals ?? 0)}
+              </div>
               <div style={{ fontSize: 11, color: T.txt3, marginTop: 2 }}>DB 누적 신호 (규제×이해관계자)</div>
             </div>
 
