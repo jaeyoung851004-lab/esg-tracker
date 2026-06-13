@@ -22,6 +22,7 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from .intelligence_db import RawArticle, TaggedArticle, _engine
+from .news import detect_source_region
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,10 @@ def compute_hotspots(
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
 
-        iso = region_to_iso(source_name or "")
+        # source_name 은 미디어 이름("Reuters" 등)이므로
+        # detect_source_region() 으로 한국어 지역명을 얻은 뒤 ISO 변환
+        region = detect_source_region(source_name or "")
+        iso = region_to_iso(region)
         key = (iso, reg_tag or "ESG")
 
         if created_at >= recent_start:

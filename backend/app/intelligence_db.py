@@ -69,24 +69,31 @@ def _compute_url_hash(url: str) -> str:
 
 
 def upsert_raw_article(article: dict) -> None:
-    """url_hash 중복 체크 후 raw_articles에 적재한다. 실패해도 기존 흐름을 방해하지 않는다."""
+    """
+    raw_articles에 중복 없이 적재한다.
+    SQLite INSERT OR IGNORE 를 사용하여 멀티스레드 race condition을 안전하게 처리한다.
+    실패해도 기존 크롤링 흐름을 방해하지 않는다.
+    """
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
     url: str = article.get("url", "")
     if not url:
         return
     url_hash = _compute_url_hash(url)
     try:
-        with Session(_engine) as session:
-            if session.query(RawArticle).filter_by(url_hash=url_hash).first():
-                return
-            row = RawArticle(
-                url_hash=url_hash,
-                title=article.get("title", ""),
-                excerpt=article.get("summary", ""),
-                lang="en",
-                source_name=article.get("source", ""),
-                created_at=datetime.now(UTC),
+        with _engine.begin() as conn:
+            stmt = (
+                sqlite_insert(RawArticle.__table__)
+                .values(
+                    url_hash=url_hash,
+                    title=article.get("title", ""),
+                    excerpt=article.get("summary", ""),
+                    lang="en",
+                    source_name=article.get("source", ""),
+                    created_at=datetime.now(UTC),
+                )
+                .on_conflict_do_nothing(index_elements=["url_hash"])
             )
-            session.add(row)
-            session.commit()
+            conn.execute(stmt)
     except Exception:
         logger.exception("intelligence_db: raw_article upsert failed for url_hash=%s", url_hash)
