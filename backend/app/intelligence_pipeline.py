@@ -157,10 +157,13 @@ def process_batch(batch_size: int = PIPELINE_BATCH) -> int:
 
         # LLM 실패 시 키워드 추론으로 폴백
         if result is None:
+            reg_tag = infer_regulation_tag(title, excerpt)
+            from .news import detect_source_region
+            country = detect_source_region(row.source_name or "") or "글로벌"
             result = {
-                "regulation_tag": infer_regulation_tag(title, excerpt),
+                "regulation_tag": reg_tag,
                 "stakeholder_tag": infer_stakeholder_tag(title, excerpt),
-                "ai_summary": "",
+                "ai_summary": f"[폴백 요약] 본 뉴스는 {country} 지역의 {reg_tag} 관련 시그널입니다. 원문 제목: {title[:80]}",
                 "news_timeline": {},
             }
             logger.warning("LLM 폴백(키워드 추론) 적용 [id=%d]", row.id)
