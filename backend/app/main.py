@@ -13,6 +13,7 @@ from .models import (
     RegulationSummary,
 )
 from .news import LOOKBACK_DAYS, fetch_all_rss_articles, fetch_regulation_news
+from .intelligence_router import router as intelligence_router
 
 app = FastAPI(title="Impact ON ESG Tracker API", version="0.1.1")
 
@@ -31,6 +32,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(intelligence_router)
 
 
 @app.get("/api/health")

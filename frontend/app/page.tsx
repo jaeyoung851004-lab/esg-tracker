@@ -5,6 +5,12 @@ import { Topbar } from "@/components/topbar";
 import { getRegulations } from "@/lib/api";
 import { REGULATION_MASTER } from "@/data/regulations.master";
 import {
+  getRecentSignals,
+  getSignalStats,
+  getSignalsByRegId,
+} from "@/lib/marketSignals";
+import { IntelligencePanel } from "@/components/IntelligencePanel";
+import {
   calculateTrackingDDay,
   formatTrackingDateLabel,
   formatTrackingEventTiming,
@@ -142,6 +148,7 @@ const CODE_COLORS: Record<string, string> = {
   "AI ACT":      "bg-indigo-600",
   "Battery Reg": "bg-sky-600",
   "BATTERY REG": "bg-sky-600",
+  "Battery Regulation": "bg-sky-600",
   DPP:           "bg-fuchsia-600",
 };
 
@@ -290,6 +297,19 @@ export default async function DashboardPage() {
         )
       ),
   ].slice(0, 8);
+
+  const signalStats = getSignalStats();
+  const recentSignals = getRecentSignals(7);
+  const latestSignalRows = recentSignals.slice(0, 5);
+  const signalRegulationGroups = Array.from(
+    new Map(recentSignals.map((signal) => [signal.reg_id, signal])).values()
+  )
+    .slice(0, 5)
+    .map((signal) => ({
+      regId: signal.reg_id,
+      regulationName: signal.regulation_name,
+      signals: getSignalsByRegId(signal.reg_id).slice(0, 2),
+    }));
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc]">
@@ -492,6 +512,99 @@ export default async function DashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* 이번 주 시장 신호 */}
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-black text-navy">이번 주 시장 신호</h2>
+              <p className="mt-0.5 text-xs text-slate-400">
+                기사에서 추출한 규제별 플레이어 행동 요약
+              </p>
+            </div>
+
+            <div className="grid gap-4 p-5 lg:grid-cols-3">
+              {[
+                { label: "총 시그널 수", value: signalStats.totalSignals, unit: "건" },
+                { label: "관련 규제 수", value: signalStats.totalRegulations, unit: "개" },
+                { label: "플레이어 수", value: signalStats.totalPlayers, unit: "개" },
+              ].map((card) => (
+                <div key={card.label} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold text-slate-400">{card.label}</p>
+                  <p className="mt-2 text-2xl font-black text-navy">
+                    {card.value}<span className="ml-0.5 text-sm font-bold text-slate-500">{card.unit}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-5 border-t border-slate-100 p-5 xl:grid-cols-[1.1fr_0.9fr]">
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-500">규제별 최신 시그널</h3>
+                  <span className="text-[11px] font-bold text-slate-400">최대 5개 규제</span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {signalRegulationGroups.map((group) => (
+                    <div key={group.regId} className="rounded-lg border border-slate-200 p-4">
+                      <div className="mb-3 flex items-center gap-2">
+                        <span className={`rounded px-2 py-0.5 text-[11px] font-black text-white ${codeColor(group.regulationName)}`}>
+                          {group.regulationName}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {group.signals.map((signal) => (
+                          <div key={signal.signal_id} className="flex gap-2 text-sm leading-snug">
+                            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emeraldBrand" />
+                            <p className="min-w-0 text-slate-600">
+                              <span className="font-black text-navy">{signal.player}</span>
+                              <span className="px-1 text-slate-300">/</span>
+                              <span>{signal.signal_summary}</span>
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-500">최신 시그널</h3>
+                  <span className="text-[11px] font-bold text-slate-400">최근 5건</span>
+                </div>
+                <div className="overflow-hidden rounded-lg border border-slate-200">
+                  <div className="divide-y divide-slate-100">
+                    {latestSignalRows.map((signal) => (
+                      <div key={signal.signal_id} className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-[11px] font-bold text-slate-400">
+                            {formatDate(signal.published_date)}
+                          </span>
+                          <span className={`rounded px-2 py-0.5 text-[10px] font-black text-white ${codeColor(signal.regulation_name)}`}>
+                            {signal.regulation_name}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                            {signal.player_type}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-snug text-slate-600">
+                          <span className="font-black text-navy">{signal.player}</span>
+                          <span className="px-1 text-slate-300">/</span>
+                          {signal.signal_summary}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ─────────────────────────────────────────
+               인텔리전스 패널 (백엔드 동적 연동)
+               ───────────────────────────────────────── */}
+          <IntelligencePanel />
 
           {/* 주요 최신 뉴스 */}
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
