@@ -24,6 +24,7 @@ from .tagging_filter import (
     infer_regulation_tag,
     infer_stakeholder_tag,
     passes_keyword_filter,
+    passes_noise_filter,
 )
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,10 @@ def _process_one(row: RawArticle, session: Session) -> bool:
     """
     title_en = row.title or ""
     excerpt_en = row.excerpt or ""
+
+    # 노이즈(주식·투자) 기사 배제
+    if not passes_noise_filter(title_en, excerpt_en):
+        return False
 
     # 키워드 필터 통과 여부 확인
     if not passes_keyword_filter(title_en, excerpt_en):

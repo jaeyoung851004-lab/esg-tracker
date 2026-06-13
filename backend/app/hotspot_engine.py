@@ -31,6 +31,57 @@ RECENT_DAYS: int = 7
 BASELINE_WINDOW_DAYS: int = 28       # 비교 기준 기간
 
 
+# ── 미디어 출처명 → ISO-2 직접 매핑 (인도/베트남/독일/중국·HK 우선 처리) ─
+# source_name 에 아래 키워드가 포함되면 detect_source_region 보다 우선 적용
+_SOURCE_NAME_TO_ISO: dict[str, str] = {
+    # 인도
+    "times of india": "IN", "economic times": "IN", "india times": "IN",
+    "live mint": "IN", "livemint": "IN", "the mint": "IN",
+    "financial express": "IN", "the financial express": "IN",
+    "the hindu": "IN", "hindustan times": "IN",
+    "business standard": "IN", "business line": "IN",
+    "ndtv": "IN", "india today": "IN", "deccan herald": "IN",
+    "tribune india": "IN", "indian express": "IN",
+    "moneycontrol": "IN", "zee business": "IN",
+    # 베트남
+    "vnexpress": "VN", "vietnam news": "VN",
+    "voice of vietnam": "VN", "hanoi times": "VN",
+    "vietnam investment review": "VN", "vov.vn": "VN",
+    "thanh nien": "VN", "tuoi tre": "VN",
+    "saigon times": "VN",
+    # 독일
+    "deutsche welle": "DE", "dw.com": "DE",
+    "handelsblatt": "DE", "der spiegel": "DE",
+    "frankfurter allgemeine": "DE", "faz.net": "DE",
+    "sueddeutsche": "DE", "tagesspiegel": "DE",
+    "wirtschaftswoche": "DE",
+    # 홍콩
+    "south china morning post": "HK", "scmp": "HK",
+    # 중국
+    "china daily": "CN", "xinhua": "CN", "xinhuanet": "CN",
+    "global times": "CN", "people's daily": "CN", "caixin": "CN",
+    # 한국
+    "korea herald": "KR", "korea times": "KR",
+    "yonhap": "KR", "joongang": "KR", "chosun": "KR",
+    "hankook": "KR", "maeil business": "KR",
+}
+
+
+def source_name_to_iso(source_name: str) -> str:
+    """
+    미디어 출처명 기반 ISO-2 코드 반환.
+    명시 도메인 매핑 → detect_source_region 폴백 순서.
+    """
+    if not source_name:
+        return "ZZ"
+    name_lower = source_name.lower().strip()
+    for key, iso in _SOURCE_NAME_TO_ISO.items():
+        if key in name_lower:
+            return iso
+    region = detect_source_region(source_name)
+    return region_to_iso(region)
+
+
 # ── 국가명(한국어·영어) → ISO-2 매핑 ─────────────────────────────────────
 # news.py 의 detect_source_region() 이 반환하는 한국어 지역명을 ISO-2로 변환
 _REGION_TO_ISO: dict[str, str] = {
@@ -54,6 +105,7 @@ _REGION_TO_ISO: dict[str, str] = {
     "EU/유럽": "EU", "EU/벨기에": "EU", "미국/EU": "EU",
     "글로벌": "ZZ", "글로벌/자문": "ZZ", "글로벌/시장": "ZZ",
     "글로벌/컨설팅": "ZZ", "글로벌/보도자료": "ZZ",
+    "홍콩": "HK",
 }
 
 # ISO-2 → 국가 표시명
@@ -74,7 +126,7 @@ _ISO_TO_NAME: dict[str, str] = {
     "TR": "Turkey", "SA": "Saudi Arabia", "AE": "UAE",
     "IL": "Israel", "IR": "Iran",
     "RU": "Russia", "UA": "Ukraine", "KZ": "Kazakhstan",
-    "EU": "European Union", "ZZ": "Global",
+    "EU": "European Union", "ZZ": "Global", "HK": "Hong Kong",
 }
 
 
@@ -157,10 +209,8 @@ def compute_hotspots(
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
 
-        # source_name 은 미디어 이름("Reuters" 등)이므로
-        # detect_source_region() 으로 한국어 지역명을 얻은 뒤 ISO 변환
-        region = detect_source_region(source_name or "")
-        iso = region_to_iso(region)
+        # 미디어 출처명 → ISO 변환 (도메인 매핑 우선, 폴백: detect_source_region)
+        iso = source_name_to_iso(source_name or "")
         key = (iso, reg_tag or "ESG")
 
         if created_at >= recent_start:

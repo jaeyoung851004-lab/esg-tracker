@@ -27,6 +27,7 @@ from .hotspot_engine import (
     get_matrix_signal_counts,
     iso_to_display_name,
     region_to_iso,
+    source_name_to_iso,
 )
 from .intelligence_db import RawArticle, TaggedArticle, _engine
 from .tagging_filter import REGULATION_KEYWORDS, STAKEHOLDER_KEYWORDS
@@ -106,6 +107,25 @@ class DetailResponse(BaseModel):
     stakeholder: str | None
     total: int
     articles: list[DetailArticle]
+
+
+class NewsroomArticle(BaseModel):
+    id: int
+    date: str
+    title: str
+    source: str
+    country_iso: str
+    country_name: str
+    regulation: str
+    stakeholder: str
+    ai_summary: str
+
+
+class NewsroomResponse(BaseModel):
+    total: int
+    articles: list[NewsroomArticle]
+    regulation_tags: list[str]
+    stakeholder_tags: list[str]
 
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────
@@ -272,4 +292,60 @@ def get_detail(
         stakeholder=stakeholder,
         total=len(articles),
         articles=articles,
+    )
+
+
+@router.get("/newsroom", response_model=NewsroomResponse)
+def get_newsroom(
+    regulation: str | None = Query(default=None, description="규제 태그 필터 (예: CSRD)"),
+    stakeholder: str | None = Query(default=None, description="이해관계자 태그 필터"),
+    country: str | None = Query(default=None, description="ISO-2 국가 코드 필터"),
+    days: int = Query(default=30, ge=1, le=365, description="조회 기간(일)"),
+    limit: int = Query(default=500, ge=1, le=1000, description="최대 반환 건수"),
+) -> NewsroomResponse:
+    """
+    인텔리전스 뉴스룸 — 규제·이해관계자·국가 필터 지원.
+    최대 500건 반환, 프론트엔드에서 클라이언트사이드 정렬/필터링.
+    """
+    since = datetime.now(UTC) - timedelta(days=days)
+
+    with Session(_engine) as session:
+        q = (
+            session.query(RawArticle, TaggedArticle)
+            .join(TaggedArticle, TaggedArticle.article_id == RawArticle.id)
+            .filter(RawArticle.created_at >= since)
+        )
+        if regulation:
+            q = q.filter(TaggedArticle.regulation_tag == regulation)
+        if stakeholder:
+            q = q.filter(TaggedArticle.stakeholder_tag == stakeholder)
+        pairs = q.order_by(RawArticle.created_at.desc()).limit(limit * 2).all()
+
+    articles: list[NewsroomArticle] = []
+    for raw, tagged in pairs:
+        iso = source_name_to_iso(raw.source_name or "")
+        if country and iso != country.upper():
+            continue
+        date_str = raw.created_at.strftime("%Y-%m-%d") if raw.created_at else ""
+        articles.append(
+            NewsroomArticle(
+                id=raw.id,
+                date=date_str,
+                title=raw.title or "",
+                source=raw.source_name or "",
+                country_iso=iso,
+                country_name=iso_to_display_name(iso),
+                regulation=tagged.regulation_tag or "",
+                stakeholder=tagged.stakeholder_tag or "",
+                ai_summary=tagged.ai_summary or "",
+            )
+        )
+        if len(articles) >= limit:
+            break
+
+    return NewsroomResponse(
+        total=len(articles),
+        articles=articles,
+        regulation_tags=_REGULATION_TAGS,
+        stakeholder_tags=_STAKEHOLDER_TAGS,
     )

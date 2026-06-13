@@ -1,8 +1,8 @@
 """
 Section 1.2 / 2.1 — 1차 키워드 필터링 + 규제/이해관계자 추론
 
-영어 원문 기사와 DeepL 번역 한글 제목 모두를 커버하도록
-키워드 사전을 대폭 확장했다.
+마스터 규제 사전 v3: 15대 완전체 규제 커버리지
+투자·주식 노이즈 배제 레이어 장착
 """
 from __future__ import annotations
 
@@ -12,212 +12,245 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .intelligence_db import RawArticle
 
-# ── 세로축: 규제 매트릭스 키워드 (영어 + 한글 동의어 확장) ───────────────
+# ── 노이즈 배제 키워드 (주식/투자 보도 Skip) ─────────────────────────────
+NOISE_KEYWORDS: list[str] = [
+    "stock", "shares", "nasdaq", "earnings", "share price",
+    "market analysis", "market forecast", "generic product market report",
+    "shareholder alert", "class action", "openpr",
+    "stock market", "stock price", "quarterly results",
+    "ipo ", "initial public offering",
+]
+
+# ── 세로축: 15대 마스터 규제 정밀 키워드 사전 ────────────────────────────
 REGULATION_KEYWORDS: dict[str, list[str]] = {
-    "PPWR": [
-        # 공식 명칭
-        "ppwr", "packaging and packaging waste regulation",
-        "packaging regulation", "packaging law", "packaging directive",
-        # 핵심 개념 — 영어
-        "circular economy", "recycling", "recyclable", "recyclability",
-        "recycled content", "plastic waste", "plastic packaging",
-        "single-use plastic", "sup regulation", "plastic pollution",
-        "bio-based", "biodegradable", "compostable", "compostable packaging",
-        "packaging waste", "waste management", "waste reduction",
-        "extended producer responsibility", "epr", "take-back",
-        "refillable", "reusable packaging", "deposit return scheme",
-        "packaging design", "packaging policy", "sustainable packaging",
-        "packaging sustainability", "packaging material", "packaging standard",
-        "textile waste", "fibre", "biomass", "circular",
+    "ESPR": [
+        "espr", "ecodesign", "ecodesign regulation",
+        "ecodesign for sustainable products",
+        "sustainable products regulation",
+        "delegated act", "working plan ecodesign",
+        "unsold goods", "repairability",
+        "ecodesign requirement", "sustainable product",
+        "product sustainability requirement",
         # 한글
-        "포장재 규제", "포장재", "포장 규제", "재활용", "재활용 포장",
-        "포장재법", "순환경제", "플라스틱", "일회용", "폐기물",
-        "생분해", "바이오 기반", "생산자책임재활용",
+        "에코디자인", "에코디자인 규정", "지속가능한 제품", "수리가능성",
+    ],
+    "PPWR": [
+        "ppwr", "packaging waste regulation", "packaging regulation eu",
+        "recycled content packaging", "packaging waste",
+        "packaging and packaging waste",
+        "eu packaging regulation", "packaging recyclability",
+        "recyclable packaging",
+        # 한글
+        "포장재 규제", "포장재 규정", "포장재", "재활용 포장",
+        "포장 규제", "포장 폐기물",
     ],
     "CSDDD": [
-        # 공식 명칭
-        "csddd", "corporate sustainability due diligence",
-        "due diligence directive", "cs3d",
-        # 핵심 개념 — 영어
-        "supply chain due diligence", "human rights due diligence",
-        "due diligence", "supply chain risk", "supply chain audit",
-        "supply chain management", "supply chain transparency",
-        "forced labour", "forced labor", "child labour", "child labor",
-        "modern slavery", "supplier assessment", "supplier audit",
-        "responsible sourcing", "responsible business conduct",
-        "value chain", "esg due diligence", "human rights",
-        "labour rights", "labor rights", "worker rights",
-        "corporate responsibility", "social responsibility",
-        "supply chain compliance", "tier 1 supplier", "tier 2",
-        "supplier engagement", "supply chain",
+        "csddd", "cs3d", "due diligence directive",
+        "supply chain due diligence",
+        "sustainability due diligence",
+        "omnibus due diligence",
+        "corporate sustainability due diligence",
+        "human rights due diligence directive",
         # 한글
-        "공급망 실사", "공급망 리스크", "공급망 관리", "공급망 인권",
-        "공급망", "실사", "공급업체", "인권 실사", "노동 인권",
+        "공급망 실사", "공급망 인권", "실사지침", "공급망 실사법",
+        "지속가능성 실사",
     ],
     "CSRD": [
-        # 공식 명칭
-        "csrd", "corporate sustainability reporting directive",
-        "esrs", "european sustainability reporting standards",
-        # 핵심 개념 — 영어
-        "sustainability reporting", "sustainability report",
-        "esg reporting", "esg report", "esg disclosure",
-        "non-financial disclosure", "non-financial reporting",
+        "csrd", "esrs", "sustainability reporting directive",
+        "corporate sustainability reporting",
+        "omnibus csrd", "wave 2 csrd",
+        "european sustainability reporting standards",
         "double materiality", "materiality assessment",
-        "climate disclosure", "sustainability disclosure",
-        "integrated reporting", "transparency reporting",
-        "scope 1", "scope 2", "scope 3",
-        "ifrs sustainability", "issb", "s1", "s2",
-        "omnibus", "omnibus package", "reporting standard",
-        "corporate disclosure", "annual report esg",
-        "esg data", "esg metric", "kpi sustainability",
         # 한글
-        "지속가능성 공시", "지속가능성 보고", "esg 공시", "esg 보고",
-        "탄소 공시", "비재무 공시", "지속가능 보고서", "이중 중요성",
+        "지속가능성 공시", "지속가능성 보고 지침", "esg 공시",
+        "지속가능성 보고", "이중 중요성",
     ],
     "CBAM": [
-        # 공식 명칭
-        "cbam", "carbon border adjustment mechanism",
-        "carbon border adjustment",
-        # 핵심 개념 — 영어
-        "carbon border", "carbon tariff", "carbon levy",
-        "carbon price", "carbon pricing", "carbon tax",
-        "emissions trading", "eu ets", "ets", "carbon market",
-        "carbon leakage", "carbon credit", "carbon offset",
-        "greenhouse gas", "co2 emission", "carbon emission",
-        "decarbonization", "decarbonise", "decarbonize",
-        "net zero", "carbon neutral", "carbon footprint",
-        "climate change", "climate policy", "climate regulation",
-        "carbon accounting", "embodied carbon",
-        "steel emission", "cement emission", "aluminium emission",
+        "cbam", "carbon border adjustment",
+        "carbon border adjustment mechanism",
+        "carbon border",
+        "carbon leakage eu", "cbam certificate",
+        "cbam declarant", "carbon border tax",
         # 한글
-        "탄소국경조정", "탄소세", "탄소 비용", "탄소 가격",
-        "탄소 배출", "온실가스", "탄소 시장", "탄소 중립",
-        "기후변화", "탄소 크레딧", "배출권 거래",
+        "탄소국경조정", "탄소국경세", "탄소 국경 조정",
+    ],
+    "EUDR": [
+        "eudr", "eu deforestation regulation",
+        "deforestation regulation",
+        "due diligence statement",
+        "dds deforestation", "eudr compliance",
+        "deforestation free", "eudr implementation",
+        "forest risk commodity",
+        # 한글
+        "산림벌채 규정", "산림벌채", "삼림파괴 규정", "산림 규제",
+    ],
+    "GCD": [
+        "green claims directive", "greenwashing eu",
+        "green claims regulation",
+        "environmental claims eu",
+        "green claims withdrawn",
+        "green claim", "greenwashing directive",
+        "substantiating green claims",
+        "eu greenwashing",
+        # 한글
+        "그린클레임 지침", "그린클레임", "그린워싱 규제",
+        "환경주장", "친환경 주장",
+    ],
+    "AI Act": [
+        "eu ai act", "ai act", "eu ai law",
+        "artificial intelligence regulation eu",
+        "gpai", "high-risk ai",
+        "eu ai regulation", "ai liability",
+        "ai governance eu", "general purpose ai",
+        "foundation model regulation",
+        "ai conformity assessment",
+        # 한글
+        "eu ai법", "인공지능법", "ai 규제", "고위험 ai",
     ],
     "Battery Reg": [
-        # 공식 명칭
-        "battery regulation", "eu battery regulation",
-        "battery act", "battery directive",
-        "battery passport", "dpp battery",
-        # 핵심 개념 — 영어
-        "lithium battery", "ev battery", "electric vehicle battery",
-        "battery recycling", "battery material", "battery supply chain",
-        "battery manufacturer", "battery cell", "battery pack",
-        "cobalt", "lithium", "nickel", "manganese", "graphite",
-        "battery chemistry", "cathode", "anode",
-        "digital product passport", "battery dpp",
-        "electric vehicle", "ev", "e-mobility", "electrification",
-        "gigafactory", "battery factory", "battery plant",
-        "energy storage", "battery storage",
+        "eu battery regulation", "battery regulation",
+        "digital battery passport", "battery passport",
+        "dbp battery", "battery carbon footprint",
+        "battery due diligence", "battery recycled content",
+        "battery act eu",
         # 한글
-        "배터리 규제", "배터리", "배터리법", "전기차 배터리",
-        "리튬", "코발트", "배터리 여권", "전기차", "이차전지",
-        "배터리 재활용", "에너지 저장",
+        "배터리 규제", "배터리 여권", "배터리법",
+        "이차전지 규정", "배터리 탄소발자국",
+    ],
+    "DPP": [
+        "digital product passport", " dpp ",
+        "dpp regulation", "product passport",
+        "ecopassport", "product digital passport",
+        "digital passport regulation",
+        # 한글
+        "디지털 제품 여권", "제품 여권", "디지털 여권",
+    ],
+    "ELV": [
+        "elv regulation", "end of life vehicle",
+        "end-of-life vehicles", "end-of-life vehicle regulation",
+        "vehicle recycling regulation", "automotive recycling directive",
+        "elv directive",
+        # 한글
+        "폐차 규정", "폐차 재활용", "자동차 재활용 규제", "차량 재활용",
+    ],
+    "SFDR": [
+        "sfdr", "sustainable finance disclosure regulation",
+        "esg fund disclosure",
+        "principal adverse impact", " pai ",
+        "article 8 fund", "article 9 fund",
+        "sfdr classification", "sfdr reporting",
+        # 한글
+        "지속가능금융공시", "지속가능 금융 공시", "esg 펀드 공시",
+    ],
+    "KSSB": [
+        "kssb", "korean sustainability standards board",
+        "korean sustainability reporting",
+        "k-sustainability",
+        "korea esg disclosure",
+        # 한글
+        "한국 지속가능성 기준", "국내 지속가능성 보고", "한국 esg 공시", "kssb",
+    ],
+    "RE100": [
+        "re100", "renewable energy 100",
+        "100% renewable", "100 percent renewable",
+        "corporate renewable energy",
+        "ppa renewable", "power purchase agreement renewable",
+        "clean energy commitment",
+        # 한글
+        "재생에너지 100", "re100 달성", "재생에너지 전환", "재생에너지 100%",
+    ],
+    "Carbon Cost Policy": [
+        "carbon tax", "carbon pricing",
+        "carbon cost", "carbon levy",
+        "emissions trading", " ets ", "eu ets",
+        "carbon market", "net zero policy",
+        "carbon neutral policy", "decarbonization policy",
+        "climate policy", "carbon credit",
+        "carbon offset", "greenhouse gas policy",
+        # 한글
+        "탄소세", "탄소가격", "탄소배출권",
+        "배출권거래", "탄소중립 정책",
     ],
 }
 
-# ── 가로축: 이해관계자 매트릭스 키워드 (대폭 확장) ────────────────────────
+# ── 가로축: 이해관계자 키워드 ─────────────────────────────────────────────
 STAKEHOLDER_KEYWORDS: dict[str, list[str]] = {
     "경쟁사": [
         # 글로벌 대기업
-        "samsung", "lg", "hyundai", "sk", "posco", "현대", "삼성", "lg화학",
+        "samsung", "lg", "hyundai", "sk group", "posco",
         "volkswagen", "bmw", "mercedes", "toyota", "ford", "gm", "tesla",
         "apple", "microsoft", "amazon", "google", "meta", "nvidia",
         "basf", "shell", "bp", "totalenergies", "equinor",
         "catl", "byd", "panasonic", "abb",
-        "unilever", "nestle", "procter", "henkel",
+        "unilever", "nestle", "henkel",
         "arcelormittal", "thyssenkrupp", "nippon steel",
-        # 일반 기업 키워드
-        "manufacturer", "producer", "company", "corporation",
-        "firm", "enterprise", "industry", "corporate",
-        "competitor", "rival", "peer company", "player",
+        "manufacturer", "producer", "corporation",
+        "competitor", "corporate strategy",
         # 한글
-        "기업", "제조사", "기업체", "회사",
+        "삼성", "현대", "기업 대응", "제조사",
     ],
     "평가기관": [
-        # 평가기관 이름
-        "msci", "sustainalytics", "s&p global", "s&p",
-        "moody", "fitch", "ftse russell", "ftse",
-        "bloomberg esg", "refinitiv", "iss", "glass lewis",
-        "cdp", "gri", "sasb", "tcfd", "sbti", "science based targets",
-        "efrag", "issb", "ifrs foundation", "kssb",
-        "iso", "en 15343", "standard",
-        # 일반 평가 키워드
-        "rating agency", "esg rating", "esg score",
-        "certification", "audit", "assessment", "benchmark",
-        "index", "framework", "standard body", "reporting standard",
-        "accreditation", "verification", "assurance",
+        "msci", "sustainalytics", "s&p global",
+        "moody's", "fitch", "ftse russell",
+        "cdp", "gri", "sasb", "tcfd", "sbti",
+        "efrag", "issb", "ifrs foundation",
+        "iso standard", "rating agency", "esg rating", "esg score",
+        "certification body", "benchmark", "reporting standard",
+        "accreditation", "third-party verification", "assurance provider",
         # 한글
-        "평가기관", "인증", "평가", "기준", "표준",
+        "평가기관", "인증기관", "평가", "기준 제정",
     ],
     "정부당국": [
-        # EU/국제 기관
-        "european commission", "european parliament", "eu council",
-        "council of the eu", "efrag", "eba", "esma", "eiopa",
-        "eur-lex", "official journal", "ec regulation",
-        # 각국 정부
+        "european commission", "european parliament",
+        "council of the eu", "eu council",
         "ministry", "minister", "government", "parliament",
         "regulator", "regulatory authority", "authority",
         "agency", "administration", "department",
         "policy maker", "lawmaker", "legislator",
-        "sec", "epa", "bmas", "bmu",
-        "산업부", "환경부", "금융위", "금감원",
-        # 정책/법률 키워드
+        "sec", "epa", "산업부", "환경부", "금융위",
         "regulation", "directive", "law", "legislation",
-        "policy", "rule", "compliance", "enforcement",
-        "mandate", "requirement", "obligation",
+        "policy", "rule", "compliance requirement", "enforcement",
+        "mandate", "obligation", "implementation",
         # 한글
-        "정부", "규제당국", "의회", "정책", "법안", "규제", "당국",
+        "정부", "규제당국", "의회", "정책", "법안", "규제", "입법",
     ],
     "기관투자자": [
-        # 주요 기관투자자
         "blackrock", "vanguard", "state street", "fidelity",
         "pimco", "jp morgan", "goldman sachs", "morgan stanley",
-        "norges bank", "nbim", "calpers", "calstrs",
+        "norges bank", "calpers", "calstrs",
         "axa", "allianz", "zurich", "aviva",
-        "국민연금", "공무원연금", "사학연금",
-        # 금융 기관
         "pension fund", "sovereign wealth fund",
         "asset manager", "asset management", "institutional investor",
-        "hedge fund", "private equity", "venture capital",
-        "bank", "investment bank", "commercial bank",
-        "insurer", "insurance", "reinsurance",
-        # 금융 상품/행동
-        "esg fund", "green bond", "sustainable bond", "slb",
+        "hedge fund", "private equity",
+        "investment bank", "insurer", "insurance",
+        "green bond", "sustainable bond", "esg fund",
         "green finance", "sustainable finance",
-        "investor", "investment", "shareholder",
-        "divestment", "engagement", "stewardship",
-        "portfolio", "equity", "bond", "fund",
+        "investor engagement", "shareholder engagement",
+        "divestment", "stewardship",
         # 한글
-        "기관투자자", "블랙록", "연기금", "자산운용", "투자자",
-        "녹색채권", "지속가능채권",
+        "국민연금", "기관투자자", "연기금", "자산운용", "녹색채권",
     ],
     "시민단체": [
-        # 주요 NGO
         "greenpeace", "wwf", "clientearth", "friends of the earth",
-        "earthjustice", "sierra club", "350.org",
-        "business & human rights resource centre", "bhrrc",
+        "earthjustice", "sierra club",
         "amnesty international", "human rights watch",
         "transparency international",
-        "corporate accountability",
-        # 일반 NGO 키워드
         "ngo", "civil society", "advocacy group",
         "environmental group", "environmental organization",
         "activist", "campaign", "protest", "petition",
-        "nonprofit", "charity", "foundation",
-        "watchdog", "think tank",
+        "nonprofit", "charity", "watchdog", "think tank",
         # 한글
-        "시민단체", "환경단체", "그린피스", "비정부기구", "시민사회",
-        "캠페인", "환경운동",
+        "시민단체", "환경단체", "그린피스", "비정부기구", "시민사회", "캠페인",
     ],
 }
 
-# ── 추가 ESG 공통 키워드 (필터 통과용) ──────────────────────────────────────
+# ── 추가 ESG 공통 키워드 (필터 통과용) ───────────────────────────────────
 COMMON_ESG_KEYWORDS: list[str] = [
-    "esg", "sustainability", "sustainable", "climate", "environmental",
-    "governance", "social", "net zero", "carbon neutral", "green",
-    "renewable", "energy transition", "decarboniz",
-    "supply chain", "reporting", "disclosure",
+    "esg", "sustainability", "sustainable", "climate",
+    "environmental", "governance", "social",
+    "net zero", "carbon neutral", "green deal",
+    "renewable energy", "energy transition", "decarboniz",
+    "supply chain", "esg reporting", "esg disclosure",
     "지속가능", "탄소중립", "친환경", "기후",
 ]
 
@@ -241,6 +274,15 @@ def _has_any_keyword(text: str, keywords: list[str]) -> bool:
     return any(kw.lower() in lowered for kw in keywords)
 
 
+def passes_noise_filter(title: str, excerpt: str) -> bool:
+    """
+    투자·주식 노이즈 기사이면 False 반환 → tagged_articles 적재 제외.
+    제목·요약에 배제 키워드가 하나라도 있으면 Skip.
+    """
+    combined = _normalize(f"{title} {excerpt}")
+    return not any(kw.lower() in combined for kw in NOISE_KEYWORDS)
+
+
 def passes_keyword_filter(title: str, excerpt: str) -> bool:
     """제목·본문 중 하나라도 매트릭스 키워드를 포함하면 True."""
     combined = f"{title} {excerpt}"
@@ -249,8 +291,8 @@ def passes_keyword_filter(title: str, excerpt: str) -> bool:
 
 def infer_regulation_tag(title: str, excerpt: str) -> str:
     """
-    세로축 규제 태그를 키워드 빈도 기반으로 추론한다.
-    매칭 없으면 CSRD (가장 광범위한 규제)로 귀속.
+    15대 규제 태그를 키워드 빈도 기반으로 추론.
+    매칭 없으면 CSRD(광범위 공시 규제)로 귀속.
     """
     combined = _normalize(f"{title} {excerpt}")
     best_tag, best_count = "CSRD", 0
@@ -263,8 +305,8 @@ def infer_regulation_tag(title: str, excerpt: str) -> str:
 
 def infer_stakeholder_tag(title: str, excerpt: str) -> str:
     """
-    가로축 이해관계자 태그를 키워드 빈도 기반으로 추론한다.
-    매칭 없으면 '정부당국' (규제 기사의 기본 주체)으로 귀속.
+    이해관계자 태그를 키워드 빈도 기반으로 추론.
+    매칭 없으면 '정부당국'으로 귀속.
     """
     combined = _normalize(f"{title} {excerpt}")
     best_tag, best_count = "정부당국", 0

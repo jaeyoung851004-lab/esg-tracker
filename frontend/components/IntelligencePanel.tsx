@@ -59,11 +59,16 @@ const REG_CHIP_COLORS: Record<string, { bg: string; color: string }> = {
   CBAM:          { bg: "rgba(139,92,246,0.15)",  color: "#a78bfa" },
   PPWR:          { bg: "rgba(6,182,212,0.15)",   color: "#22d3ee" },
   "Battery Reg": { bg: "rgba(14,165,233,0.15)",  color: "#38bdf8" },
-  EUDR:          { bg: "rgba(234,179,8,0.15)",   color: "#facc15" },
-  ESPR:          { bg: "rgba(20,184,166,0.15)",  color: "#2dd4bf" },
-  GCD:           { bg: "rgba(132,204,22,0.15)",  color: "#a3e635" },
-  "AI Act":      { bg: "rgba(99,102,241,0.15)",  color: "#818cf8" },
-  DPP:           { bg: "rgba(217,70,239,0.15)",  color: "#e879f9" },
+  EUDR:                 { bg: "rgba(234,179,8,0.15)",   color: "#facc15" },
+  ESPR:                 { bg: "rgba(20,184,166,0.15)",  color: "#2dd4bf" },
+  GCD:                  { bg: "rgba(132,204,22,0.15)",  color: "#a3e635" },
+  "AI Act":             { bg: "rgba(99,102,241,0.15)",  color: "#818cf8" },
+  DPP:                  { bg: "rgba(217,70,239,0.15)",  color: "#e879f9" },
+  ELV:                  { bg: "rgba(236,72,153,0.15)",  color: "#f472b6" },
+  SFDR:                 { bg: "rgba(34,197,94,0.15)",   color: "#4ade80" },
+  KSSB:                 { bg: "rgba(168,85,247,0.15)",  color: "#c084fc" },
+  RE100:                { bg: "rgba(251,191,36,0.15)",  color: "#fbbf24" },
+  "Carbon Cost Policy": { bg: "rgba(239,68,68,0.15)",   color: "#f87171" },
 };
 function regChip(tag: string) {
   return REG_CHIP_COLORS[tag] ?? { bg: T.grayBg, color: T.txt2 };
@@ -332,18 +337,13 @@ function SignalMatrix({
 
   const maxCount = Math.max(...data.cells.map((c) => c.count), 1);
 
-  // 이해관계자 헤더 아이콘
-  const stIcons: Record<string, string> = {
-    "경쟁사": "🏭",
-    "경쟁사·글로벌기업": "🏭",
-    "평가기관": "🏅",
-    "평가·이니셔티브": "🏅",
-    "정부당국": "⚖️",
-    "정부·규제당국": "⚖️",
-    "기관투자자": "📈",
-    "금융·기관투자자": "📈",
-    "시민단체": "🌱",
-    "시민단체·NGO": "🌱",
+  // 이해관계자 → 4색 배지 정의 ([경쟁사]=블루, [정부당국]=그린, [기관투자자]=노랑, [시민단체]=레드, [평가기관]=퍼플)
+  const stBadge: Record<string, { bg: string; color: string; icon: string }> = {
+    "경쟁사":    { bg: "rgba(77,157,224,0.18)",  color: "#6db3e8", icon: "🏭" },
+    "평가기관":  { bg: "rgba(139,92,246,0.18)",  color: "#a78bfa", icon: "🏅" },
+    "정부당국":  { bg: "rgba(61,214,140,0.15)",  color: "#3dd68c", icon: "⚖️" },
+    "기관투자자":{ bg: "rgba(240,180,41,0.18)",  color: "#f0b429", icon: "📈" },
+    "시민단체":  { bg: "rgba(255,95,95,0.15)",   color: "#ff7e7e", icon: "🌱" },
   };
 
   return (
@@ -354,14 +354,21 @@ function SignalMatrix({
             <th style={{ fontSize: 10, fontWeight: 500, color: T.txt3, padding: "5px 5px 7px", textAlign: "left", borderBottom: `1px solid ${T.border}`, width: 80 }}>
               규제
             </th>
-            {data.stakeholder_tags.map((st) => (
-              <th key={st} style={{ fontSize: 10, fontWeight: 500, color: T.txt3, padding: "5px 5px 7px", textAlign: "center", borderBottom: `1px solid ${T.border}` }}>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                  <span style={{ fontSize: 13 }}>{stIcons[st] ?? "•"}</span>
-                  <span>{st.split("·")[0]}</span>
-                </div>
-              </th>
-            ))}
+            {data.stakeholder_tags.map((st) => {
+              const sb = stBadge[st] ?? { bg: "rgba(255,255,255,0.05)", color: T.txt2, icon: "•" };
+              return (
+                <th key={st} style={{ padding: "5px 4px 7px", textAlign: "center", borderBottom: `1px solid ${T.border}` }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                    <span style={{ fontSize: 12 }}>{sb.icon}</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, color: sb.color,
+                      background: sb.bg, padding: "1px 5px", borderRadius: 4,
+                      whiteSpace: "nowrap",
+                    }}>{st.split("·")[0]}</span>
+                  </div>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -427,9 +434,11 @@ function SignalMatrix({
                         }}
                       >
                         <span style={{ fontSize: 9, fontWeight: labelWeight as number, color: labelColor, lineHeight: 1.2 }}>
-                          {count === 0 ? "—" : count}
-                          {isSpike ? " 🔺" : ""}
+                          {count === 0 ? "—" : `+${count}건`}
                         </span>
+                        {isSpike && count > 0 && (
+                          <span style={{ fontSize: 8, color: "#ff5f5f", fontWeight: 700, lineHeight: 1 }}>SPIKE🔺</span>
+                        )}
                       </div>
                     </td>
                   );
@@ -793,7 +802,7 @@ export function IntelligencePanel() {
               { label: "메뉴", type: "label" },
               { icon: "⊞", label: "종합 대시보드", active: true },
               { icon: "◎", label: "맞춤 규제 진단" },
-              { icon: "☰", label: "리포트 추출" },
+              { icon: "📰", label: "인텔리전스 뉴스룸", href: "/newsroom" },
               { label: "설정", type: "label" },
               { icon: "🔔", label: "알림 설정" },
               { icon: "⚙", label: "환경설정" },
@@ -803,6 +812,28 @@ export function IntelligencePanel() {
                   <div key={i} style={{ fontSize: 9, color: T.txt3, padding: "10px 8px 4px", letterSpacing: "0.07em", textTransform: "uppercase" }}>
                     {item.label}
                   </div>
+                );
+              }
+              const navContent = (
+                <>
+                  <span style={{ fontSize: 15, color: item.active ? T.lime : T.txt2 }}>{item.icon}</span>
+                  {item.label}
+                </>
+              );
+              if ((item as { href?: string }).href) {
+                return (
+                  <a
+                    key={i}
+                    href={(item as { href?: string }).href}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 9,
+                      padding: "7px 9px", borderRadius: 8, cursor: "pointer",
+                      fontSize: 12, color: T.lime, marginBottom: 1,
+                      background: T.limeDim, textDecoration: "none",
+                    }}
+                  >
+                    {navContent}
+                  </a>
                 );
               }
               return (
@@ -821,8 +852,7 @@ export function IntelligencePanel() {
                     background: item.active ? T.bg3 : "transparent",
                   }}
                 >
-                  <span style={{ fontSize: 15, color: item.active ? T.lime : T.txt2 }}>{item.icon}</span>
-                  {item.label}
+                  {navContent}
                 </div>
               );
             })}
