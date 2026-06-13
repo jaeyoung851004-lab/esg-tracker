@@ -57,14 +57,31 @@ def _run_pipeline() -> None:
 async def lifespan(app: FastAPI):
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.interval import IntervalTrigger
+    from datetime import datetime, timedelta
 
     scheduler = AsyncIOScheduler()
-    # 매 1시간 크롤
-    scheduler.add_job(_crawl_once, IntervalTrigger(hours=1), id="crawl", replace_existing=True)
-    # 크롤 10분 후 파이프라인 (매 1시간, 10분 오프셋)
-    scheduler.add_job(_run_pipeline, IntervalTrigger(hours=1, start_date="2000-01-01 00:10:00"), id="pipeline", replace_existing=True)
+
+    # 서버 기동 직후 크롤/파이프라인이 즉시 실행돼 API 워커를 마비시키는 현상을 방지한다.
+    # next_run_time을 명시해 첫 실행을 10분/20분 뒤로 미루고, 이후 1시간 간격으로 반복한다.
+    now = datetime.now()
+    scheduler.add_job(
+        _crawl_once,
+        IntervalTrigger(hours=1),
+        id="crawl",
+        next_run_time=now + timedelta(minutes=10),
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_pipeline,
+        IntervalTrigger(hours=1),
+        id="pipeline",
+        next_run_time=now + timedelta(minutes=20),
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("[scheduler] APScheduler 시작 — crawl@1h, pipeline@1h+10m")
+    logger.info(
+        "[scheduler] APScheduler 시작 — crawl 첫 실행 T+10m, pipeline T+20m, 이후 1h 간격"
+    )
     yield
     scheduler.shutdown(wait=False)
     logger.info("[scheduler] APScheduler 종료")
@@ -77,6 +94,8 @@ _extra = os.getenv("ALLOWED_ORIGINS", "")
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://esg-tracker-frontend.vercel.app",
+    "https://esg-tracker.onrender.com",
     *[o.strip() for o in _extra.split(",") if o.strip()],
 ]
 

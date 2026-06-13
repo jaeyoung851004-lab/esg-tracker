@@ -1,69 +1,102 @@
 "use client";
 
 /**
- * IntelligencePanel — 인텔리전스 대시보드 패널 (Client Component)
- *
- * 담당 영역:
- *  - /api/v1/intelligence/matrix   → 5×5 규제×이해관계자 신호 매트릭스
- *  - /api/v1/intelligence/hotspots → 글로벌 핫스팟 맵 + 바 차트
- *  - /api/v1/intelligence/detail   → 클릭 → 슬라이딩 Drawer (AI 요약 + 타임라인)
+ * IntelligencePanel — 임팩트온 ESG 인텔리전스 마스터 대시보드
+ * 마스터 디자인: impacton_dashboard_v3_enterprise.html 100% 포팅
+ * 다크-라임 시스템: --bg0 #0a0f16 / --lime #D4FF6D
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// ── 환경 변수 (브라우저 → 백엔드) ──────────────────────────────────────────
+// ── API Base ──────────────────────────────────────────────────────────────
 const API_BASE =
-  process.env.NEXT_PUBLIC_ESG_TRACKER_API_BASE_URL || "http://127.0.0.1:8000";
+  process.env.NEXT_PUBLIC_ESG_TRACKER_API_BASE_URL ||
+  "https://esg-tracker.onrender.com";
 
-// ── 상수 ──────────────────────────────────────────────────────────────────
-const REGULATION_TAGS = ["PPWR", "CSDDD", "CSRD", "CBAM", "Battery Reg"] as const;
-const STAKEHOLDER_TAGS = ["경쟁사", "평가기관", "정부당국", "기관투자자", "시민단체"] as const;
-type RegTag = (typeof REGULATION_TAGS)[number];
-
-const REG_COLORS: Record<RegTag, string> = {
-  PPWR: "bg-cyan-600",
-  CSDDD: "bg-orange-600",
-  CSRD: "bg-rose-600",
-  CBAM: "bg-violet-600",
-  "Battery Reg": "bg-sky-600",
+// ── CSS 변수 인라인 (Tailwind 미지원 토큰 보완) ─────────────────────────
+const T = {
+  bg0: "#0a0f16",
+  bg1: "#111822",
+  bg2: "#18202c",
+  bg3: "#1f2a38",
+  bg4: "#263044",
+  lime: "#D4FF6D",
+  limeDim: "rgba(212,255,109,0.12)",
+  limeBorder: "rgba(212,255,109,0.25)",
+  border: "#1e2d3d",
+  border2: "#2a3d52",
+  txt: "#dce8f5",
+  txt2: "#7a90a8",
+  txt3: "#435a72",
+  red: "#ff5f5f",
+  redBg: "rgba(255,95,95,0.12)",
+  amber: "#f0b429",
+  amberBg: "rgba(240,180,41,0.12)",
+  green: "#3dd68c",
+  greenBg: "rgba(61,214,140,0.1)",
+  blue: "#4d9de0",
+  blueBg: "rgba(77,157,224,0.1)",
+  blueTxt: "#6db3e8",
+  grayBg: "rgba(255,255,255,0.04)",
 };
 
-const REG_TEXT_COLORS: Record<RegTag, string> = {
-  PPWR: "text-cyan-700",
-  CSDDD: "text-orange-700",
-  CSRD: "text-rose-700",
-  CBAM: "text-violet-700",
-  "Battery Reg": "text-sky-700",
-};
+// ── 이해관계자 태그 → 뱃지 매핑 ─────────────────────────────────────────
+// [기업]=파랑 tag-c  [정책]=초록 tag-p  [금융]=노랑 tag-m  [국내]=빨강 tag-s
+function stakeholderBadge(tag: string): { bg: string; color: string; label: string } {
+  if (/경쟁|기업|글로벌/.test(tag))
+    return { bg: T.blueBg, color: T.blueTxt, label: "기업" };
+  if (/정부|규제|당국|정책|평가|이니셔티브/.test(tag))
+    return { bg: T.greenBg, color: T.green, label: "정책" };
+  if (/금융|투자|기관/.test(tag))
+    return { bg: T.amberBg, color: T.amber, label: "금융" };
+  return { bg: T.redBg, color: T.red, label: "국내" };
+}
 
-// ISO-2 → SVG 좌표 (740×360 viewBox 기준)
+// ── 규제 태그 → 셀 배경색 ────────────────────────────────────────────────
+const REG_CHIP_COLORS: Record<string, { bg: string; color: string }> = {
+  CSRD:          { bg: "rgba(244,63,94,0.15)",   color: "#fb7185" },
+  CSDDD:         { bg: "rgba(249,115,22,0.15)",  color: "#fb923c" },
+  CBAM:          { bg: "rgba(139,92,246,0.15)",  color: "#a78bfa" },
+  PPWR:          { bg: "rgba(6,182,212,0.15)",   color: "#22d3ee" },
+  "Battery Reg": { bg: "rgba(14,165,233,0.15)",  color: "#38bdf8" },
+  EUDR:          { bg: "rgba(234,179,8,0.15)",   color: "#facc15" },
+  ESPR:          { bg: "rgba(20,184,166,0.15)",  color: "#2dd4bf" },
+  GCD:           { bg: "rgba(132,204,22,0.15)",  color: "#a3e635" },
+  "AI Act":      { bg: "rgba(99,102,241,0.15)",  color: "#818cf8" },
+  DPP:           { bg: "rgba(217,70,239,0.15)",  color: "#e879f9" },
+};
+function regChip(tag: string) {
+  return REG_CHIP_COLORS[tag] ?? { bg: T.grayBg, color: T.txt2 };
+}
+
+// ── ISO 좌표 (500×240 viewBox 기준, 마스터 HTML 스케일) ──────────────────
 const ISO_COORDS: Record<string, { x: number; y: number; label: string }> = {
-  GB: { x: 340, y: 100, label: "영국" },
-  DE: { x: 375, y: 108, label: "독일" },
-  FR: { x: 355, y: 122, label: "프랑스" },
-  IT: { x: 380, y: 135, label: "이탈리아" },
-  NL: { x: 360, y: 105, label: "네덜란드" },
-  PL: { x: 395, y: 108, label: "폴란드" },
-  ES: { x: 340, y: 135, label: "스페인" },
-  EU: { x: 370, y: 118, label: "EU" },
-  BE: { x: 364, y: 112, label: "벨기에" },
-  US: { x: 160, y: 130, label: "미국" },
-  CA: { x: 150, y: 105, label: "캐나다" },
-  BR: { x: 245, y: 195, label: "브라질" },
-  MX: { x: 145, y: 155, label: "멕시코" },
-  KR: { x: 580, y: 130, label: "한국" },
-  JP: { x: 600, y: 125, label: "일본" },
-  CN: { x: 555, y: 125, label: "중국" },
-  IN: { x: 510, y: 150, label: "인도" },
-  ID: { x: 565, y: 178, label: "인도네시아" },
-  VN: { x: 555, y: 155, label: "베트남" },
-  MY: { x: 560, y: 168, label: "말레이시아" },
-  SG: { x: 562, y: 173, label: "싱가포르" },
-  AU: { x: 610, y: 240, label: "호주" },
-  ZA: { x: 400, y: 240, label: "남아공" },
-  TR: { x: 415, y: 125, label: "터키" },
-  RU: { x: 460, y: 90, label: "러시아" },
-  ZZ: { x: 370, y: 118, label: "글로벌" },
+  EU: { x: 225, y: 68, label: "EU" },
+  GB: { x: 200, y: 62, label: "영국" },
+  DE: { x: 228, y: 65, label: "독일" },
+  FR: { x: 215, y: 74, label: "프랑스" },
+  IT: { x: 228, y: 82, label: "이탈리아" },
+  NL: { x: 220, y: 62, label: "네덜란드" },
+  PL: { x: 238, y: 62, label: "폴란드" },
+  ES: { x: 205, y: 82, label: "스페인" },
+  BE: { x: 220, y: 68, label: "벨기에" },
+  US: { x: 95, y: 80, label: "미국" },
+  CA: { x: 88, y: 62, label: "캐나다" },
+  BR: { x: 148, y: 118, label: "브라질" },
+  MX: { x: 87, y: 93, label: "멕시코" },
+  KR: { x: 357, y: 78, label: "한국" },
+  JP: { x: 370, y: 74, label: "일본" },
+  CN: { x: 338, y: 75, label: "중국" },
+  IN: { x: 310, y: 92, label: "인도" },
+  ID: { x: 345, y: 108, label: "인도네시아" },
+  VN: { x: 338, y: 94, label: "베트남" },
+  MY: { x: 340, y: 101, label: "말레이시아" },
+  SG: { x: 342, y: 105, label: "싱가포르" },
+  AU: { x: 378, y: 148, label: "호주" },
+  ZA: { x: 243, y: 148, label: "남아공" },
+  TR: { x: 252, y: 76, label: "터키" },
+  RU: { x: 280, y: 55, label: "러시아" },
+  ZZ: { x: 225, y: 72, label: "글로벌" },
 };
 
 // ── API 타입 ───────────────────────────────────────────────────────────────
@@ -76,7 +109,6 @@ interface Hotspot {
   spike_pct: number;
   is_spike: boolean;
 }
-
 interface HotspotsResponse {
   regulation: string | null;
   spike_threshold_pct: number;
@@ -84,28 +116,24 @@ interface HotspotsResponse {
   spike_countries: number;
   hotspots: Hotspot[];
 }
-
 interface MatrixCell {
   regulation_tag: string;
   stakeholder_tag: string;
   count: number;
   is_spike: boolean;
 }
-
 interface MatrixResponse {
   regulation_tags: string[];
   stakeholder_tags: string[];
   cells: MatrixCell[];
   matrix: Record<string, Record<string, number>>;
 }
-
 interface TimelineEvent {
   event_date?: string | null;
   deadline?: string | null;
   phase?: string | null;
   key_actors?: string[];
 }
-
 interface DetailArticle {
   id: number;
   title: string;
@@ -117,7 +145,6 @@ interface DetailArticle {
   ai_summary: string;
   timeline: TimelineEvent;
 }
-
 interface DetailResponse {
   regulation: string | null;
   country_iso: string | null;
@@ -125,7 +152,6 @@ interface DetailResponse {
   total: number;
   articles: DetailArticle[];
 }
-
 interface DrawerQuery {
   regulation?: string;
   country?: string;
@@ -134,242 +160,290 @@ interface DrawerQuery {
 }
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────
-function formatPct(n: number) {
-  const sign = n >= 0 ? "+" : "";
-  return `${sign}${Math.round(n)}%`;
+function fmtPct(n: number) {
+  return `${n >= 0 ? "+" : ""}${Math.round(n)}%`;
 }
-
-function formatDate(iso?: string | null) {
+function fmtDate(iso?: string | null) {
   if (!iso) return null;
   try {
-    return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" }).format(
-      new Date(iso)
-    );
+    return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" }).format(new Date(iso));
   } catch {
     return iso.slice(0, 10);
   }
 }
 
-// ── 서브 컴포넌트: 글로벌 핫스팟 SVG 맵 ─────────────────────────────────
+// ── 글로벌 핫스팟 SVG 맵 ────────────────────────────────────────────────
 function HotspotMap({
   hotspots,
-  onCountryClick,
+  onClick,
 }: {
   hotspots: Hotspot[];
-  onCountryClick: (iso: string, label: string) => void;
+  onClick: (iso: string, label: string) => void;
 }) {
-  const maxCount = Math.max(...hotspots.map((h) => h.recent_count), 1);
+  const max = Math.max(...hotspots.map((h) => h.recent_count), 1);
+  const landPaths = [
+    "M55,55 L115,50 L128,68 L138,88 L118,98 L78,93 L55,75 Z",
+    "M148,52 L198,48 L208,78 L198,108 L158,113 L143,88 Z",
+    "M218,38 L278,36 L293,53 L288,78 L258,88 L233,83 L213,63 Z",
+    "M223,93 L273,88 L283,123 L258,138 L228,128 L216,113 Z",
+    "M283,33 L358,28 L378,53 L368,88 L338,98 L288,83 L276,58 Z",
+    "M353,93 L378,88 L393,118 L373,133 L348,123 Z",
+    "M398,138 L448,136 L458,168 L428,183 L398,173 Z",
+  ];
 
   return (
-    <div className="relative overflow-hidden rounded-xl bg-[#0f1a2e]">
-      <svg viewBox="0 0 740 360" className="w-full">
-        {/* 그리드 */}
-        {Array.from({ length: 12 }).map((_, i) => (
-          <line key={`v${i}`} x1={i * 62} y1={0} x2={i * 62} y2={360} stroke="#1e3050" strokeWidth={0.5} />
+    <div
+      style={{
+        background: T.bg2,
+        borderRadius: 8,
+        position: "relative",
+        overflow: "hidden",
+        flex: 1,
+        minHeight: 80,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 8,
+          left: 10,
+          fontSize: 9,
+          color: T.txt3,
+          zIndex: 2,
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+        }}
+      >
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: T.green,
+            display: "inline-block",
+          }}
+        />
+        <span style={{ color: T.lime, fontWeight: 500 }}>리스크 감지 중</span>
+      </div>
+      <svg viewBox="0 0 500 240" style={{ width: "100%", height: "100%" }}>
+        <rect width={500} height={240} fill="#0d1520" />
+        {Array.from({ length: 9 }).map((_, i) => (
+          <line key={`h${i}`} x1={0} y1={i * 30} x2={500} y2={i * 30} stroke="#131e2a" strokeWidth={0.5} />
         ))}
-        {Array.from({ length: 6 }).map((_, i) => (
-          <line key={`h${i}`} x1={0} y1={i * 60} x2={740} y2={i * 60} stroke="#1e3050" strokeWidth={0.5} />
+        {Array.from({ length: 13 }).map((_, i) => (
+          <line key={`v${i}`} x1={i * 40} y1={0} x2={i * 40} y2={240} stroke="#131e2a" strokeWidth={0.5} />
         ))}
-        {/* 대륙 실루엣 */}
-        <path d="M80,70 L220,65 L240,100 L220,160 L180,175 L130,165 L90,140 L70,110 Z" fill="#1a2d4a" stroke="#2a4060" strokeWidth={1} />
-        <path d="M180,180 L250,175 L265,200 L255,240 L230,260 L200,255 L185,230 L175,200 Z" fill="#1a2d4a" stroke="#2a4060" strokeWidth={1} />
-        <path d="M310,80 L420,75 L435,95 L425,140 L395,150 L355,145 L320,130 L305,105 Z" fill="#1a2d4a" stroke="#2a4060" strokeWidth={1} />
-        <path d="M330,150 L410,145 L430,175 L420,230 L390,255 L355,252 L330,220 L320,180 Z" fill="#1a2d4a" stroke="#2a4060" strokeWidth={1} />
-        <path d="M430,60 L650,55 L665,80 L660,160 L620,185 L560,190 L490,175 L440,150 L425,110 Z" fill="#1a2d4a" stroke="#2a4060" strokeWidth={1} />
-        <path d="M580,210 L660,205 L670,240 L645,260 L600,258 L580,235 Z" fill="#1a2d4a" stroke="#2a4060" strokeWidth={1} />
+        {landPaths.map((d, i) => (
+          <path key={i} d={d} fill="#1a2840" stroke={T.border} strokeWidth={0.8} />
+        ))}
+        {/* 한국 기준점 */}
+        <circle cx={357} cy={78} r={3} fill={T.lime} />
+        <text x={357} y={72} textAnchor="middle" fontSize={7} fill={T.lime} fontFamily="sans-serif">한국</text>
 
-        {/* 핫스팟 점 */}
         {hotspots.map((h) => {
           const coord = ISO_COORDS[h.country_iso];
           if (!coord) return null;
-          const size = 4 + (h.recent_count / maxCount) * 18;
-          const opacity = 0.35 + (h.recent_count / maxCount) * 0.65;
-          const color = h.is_spike ? "#f97316" : "#34d399"; // 스파이크 = 주황, 일반 = 에메랄드
-          const ringColor = h.is_spike ? "#fb923c" : "#34d399";
+          const size = 3 + (h.recent_count / max) * 10;
+          const op = 0.4 + (h.recent_count / max) * 0.6;
+          const col = h.is_spike ? T.red : T.green;
           return (
-            <g
-              key={h.country_iso}
-              className="cursor-pointer"
-              onClick={() => onCountryClick(h.country_iso, coord.label)}
-            >
+            <g key={h.country_iso} style={{ cursor: "pointer" }} onClick={() => onClick(h.country_iso, coord.label)}>
               {h.is_spike && (
-                <circle cx={coord.x} cy={coord.y} r={size + 8} fill="none" stroke={ringColor} strokeWidth={1} opacity={0.2}>
-                  <animate attributeName="r" values={`${size + 4};${size + 12};${size + 4}`} dur="2s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite" />
-                </circle>
+                <>
+                  <circle cx={coord.x} cy={coord.y} r={size + 10} fill={`rgba(255,95,95,0)`} stroke="none" style={{ animation: "hs-out 2s ease-in-out infinite" }} />
+                  <circle cx={coord.x} cy={coord.y} r={size + 6} fill={`rgba(255,95,95,0.18)`} style={{ animation: "hs-mid 2s ease-in-out infinite" }} />
+                </>
               )}
-              <circle cx={coord.x} cy={coord.y} r={size + 5} fill="none" stroke={ringColor} strokeWidth={1} opacity={opacity * 0.4} />
-              <circle cx={coord.x} cy={coord.y} r={size} fill={color} opacity={opacity} />
+              <circle cx={coord.x} cy={coord.y} r={size} fill={col} opacity={op} />
               {h.recent_count >= 2 && (
-                <text x={coord.x} y={coord.y + 1} textAnchor="middle" dominantBaseline="middle" fontSize={size > 10 ? 9 : 7} fontWeight="bold" fill="white" opacity={0.95}>
+                <text x={coord.x} y={coord.y + 1} textAnchor="middle" dominantBaseline="middle" fontSize={size > 7 ? 8 : 6} fontWeight="bold" fill="white" opacity={0.95}>
                   {h.recent_count}
                 </text>
               )}
+              <text x={coord.x} y={coord.y + size + 8} textAnchor="middle" fontSize={7} fill={col} fontFamily="sans-serif" opacity={0.8}>
+                {coord.label}
+              </text>
             </g>
           );
         })}
       </svg>
-
-      {/* 범례 */}
-      <div className="absolute bottom-3 left-3 flex flex-col gap-1">
-        <div className="flex items-center gap-1.5">
-          <div className="h-2 w-2 rounded-full bg-orange-400" />
-          <span className="text-[10px] text-slate-400">급등 (spike ≥100%)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-2 w-2 rounded-full bg-emerald-400" />
-          <span className="text-[10px] text-slate-400">일반</span>
-        </div>
-      </div>
-
-      {/* 상위 국가 목록 */}
-      <div className="absolute bottom-3 right-3 flex flex-col gap-1">
-        {hotspots.slice(0, 5).map((h) => (
-          <div key={h.country_iso} className="flex items-center gap-1.5">
-            <div className={`h-1.5 w-1.5 rounded-full ${h.is_spike ? "bg-orange-400" : "bg-emerald-400"}`} />
-            <span className="font-mono text-[10px] text-slate-400">
-              {ISO_COORDS[h.country_iso]?.label ?? h.country_name}{" "}
-              <span className={h.is_spike ? "text-orange-400" : "text-emerald-400"}>
-                {h.recent_count}건
-              </span>
-            </span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
 
-// ── 서브 컴포넌트: 바 차트 ────────────────────────────────────────────────
-function HotspotBarChart({
+// ── 바 차트 ───────────────────────────────────────────────────────────────
+function BarChart({
   hotspots,
-  onCountryClick,
+  onClick,
 }: {
   hotspots: Hotspot[];
-  onCountryClick: (iso: string, label: string) => void;
+  onClick: (iso: string, label: string) => void;
 }) {
-  const top = hotspots.slice(0, 8);
+  const top = hotspots.slice(0, 9);
   const maxPct = Math.max(...top.map((h) => Math.abs(h.spike_pct)), 1);
 
   return (
-    <div className="space-y-2">
+    <div style={{ flexShrink: 0, marginTop: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 500, color: T.txt2, marginBottom: 7, display: "flex", alignItems: "center", gap: 5 }}>
+        <span style={{ color: T.lime, fontSize: 12 }}>▪</span>
+        9대 전략 국가 금주 보도량 변동
+      </div>
       {top.map((h) => {
         const label = ISO_COORDS[h.country_iso]?.label ?? h.country_name;
-        const barWidth = Math.min((Math.abs(h.spike_pct) / maxPct) * 100, 100);
+        const w = Math.min((Math.abs(h.spike_pct) / maxPct) * 100, 100);
         return (
-          <button
+          <div
             key={h.country_iso}
-            onClick={() => onCountryClick(h.country_iso, label)}
-            className="group flex w-full items-center gap-2 text-left"
+            style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, cursor: "pointer" }}
+            onClick={() => onClick(h.country_iso, label)}
           >
-            <span className="w-16 shrink-0 text-right text-[11px] text-slate-500 group-hover:text-navy">
+            <div style={{ fontSize: 9, color: T.txt2, width: 76, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {label}
-            </span>
-            <div className="flex-1 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className={`h-2 rounded-full transition-all ${h.is_spike ? "bg-orange-500" : "bg-emeraldBrand"}`}
-                style={{ width: `${barWidth}%` }}
-              />
             </div>
-            <span className={`w-14 text-right font-mono text-[11px] font-bold ${h.is_spike ? "text-orange-600" : "text-emeraldBrand"}`}>
-              {formatPct(h.spike_pct)}
-            </span>
-            {h.is_spike && (
-              <span className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-600">
-                SPIKE
-              </span>
-            )}
-          </button>
+            <div style={{ flex: 1, height: 4, background: T.bg3, borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 2, width: `${w}%`, background: h.is_spike ? T.red : T.border2 }} />
+            </div>
+            <div style={{ fontSize: 9, fontWeight: 500, width: 36, textAlign: "right", flexShrink: 0, color: h.is_spike ? "#ff7e7e" : T.txt3 }}>
+              {fmtPct(h.spike_pct)}
+            </div>
+          </div>
         );
       })}
     </div>
   );
 }
 
-// ── 서브 컴포넌트: 5×5 매트릭스 ──────────────────────────────────────────
+// ── 신호 매트릭스 ─────────────────────────────────────────────────────────
 function SignalMatrix({
-  matrixData,
+  data,
   onCellClick,
 }: {
-  matrixData: MatrixResponse | null;
-  onCellClick: (reg: string, st: string) => void;
+  data: MatrixResponse | null;
+  onCellClick: (reg: string, st: string, cell: MatrixCell | undefined) => void;
 }) {
-  if (!matrixData) {
+  if (!data) {
     return (
-      <div className="flex h-40 items-center justify-center text-sm text-slate-400">
-        매트릭스 데이터를 불러오는 중...
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 160, fontSize: 12, color: T.txt3 }}>
+        매트릭스 데이터 로딩 중...
       </div>
     );
   }
 
-  const allCounts = matrixData.cells.map((c) => c.count);
-  const maxCount = Math.max(...allCounts, 1);
+  const maxCount = Math.max(...data.cells.map((c) => c.count), 1);
+
+  // 이해관계자 헤더 아이콘
+  const stIcons: Record<string, string> = {
+    "경쟁사": "🏭",
+    "경쟁사·글로벌기업": "🏭",
+    "평가기관": "🏅",
+    "평가·이니셔티브": "🏅",
+    "정부당국": "⚖️",
+    "정부·규제당국": "⚖️",
+    "기관투자자": "📈",
+    "금융·기관투자자": "📈",
+    "시민단체": "🌱",
+    "시민단체·NGO": "🌱",
+  };
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-xs">
+    <div style={{ overflowX: "auto", overflowY: "auto", flex: 1 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <thead>
           <tr>
-            <th className="w-24 px-2 py-2 text-left text-[11px] font-black text-slate-400">
-              규제 ↓ / 이해관계자 →
+            <th style={{ fontSize: 10, fontWeight: 500, color: T.txt3, padding: "5px 5px 7px", textAlign: "left", borderBottom: `1px solid ${T.border}`, width: 80 }}>
+              규제
             </th>
-            {matrixData.stakeholder_tags.map((st) => (
-              <th key={st} className="px-2 py-2 text-center text-[11px] font-bold text-slate-500">
-                {st}
+            {data.stakeholder_tags.map((st) => (
+              <th key={st} style={{ fontSize: 10, fontWeight: 500, color: T.txt3, padding: "5px 5px 7px", textAlign: "center", borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  <span style={{ fontSize: 13 }}>{stIcons[st] ?? "•"}</span>
+                  <span>{st.split("·")[0]}</span>
+                </div>
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
-          {matrixData.regulation_tags.map((reg) => (
-            <tr key={reg}>
-              <td className="px-2 py-2">
-                <span className={`rounded px-2 py-0.5 text-[11px] font-black text-white ${REG_COLORS[reg as RegTag] ?? "bg-navy"}`}>
-                  {reg}
-                </span>
-              </td>
-              {matrixData.stakeholder_tags.map((st) => {
-                const cell = matrixData.cells.find(
-                  (c) => c.regulation_tag === reg && c.stakeholder_tag === st
-                );
-                const count = cell?.count ?? 0;
-                const isSpike = cell?.is_spike ?? false;
-                const intensity = count / maxCount;
-                const bg = count === 0
-                  ? "bg-slate-50"
-                  : isSpike
-                  ? "bg-orange-50 hover:bg-orange-100"
-                  : intensity > 0.6
-                  ? "bg-emerald-50 hover:bg-emerald-100"
-                  : "bg-slate-100 hover:bg-slate-200";
-                const textColor = isSpike
-                  ? "text-orange-700 font-black"
-                  : count > 0
-                  ? `${REG_TEXT_COLORS[reg as RegTag] ?? "text-navy"} font-bold`
-                  : "text-slate-300";
-                return (
-                  <td key={st} className="px-1 py-1 text-center">
-                    <button
-                      onClick={() => onCellClick(reg, st)}
-                      disabled={count === 0}
-                      className={`h-9 w-full min-w-[52px] rounded-lg text-sm transition-all disabled:cursor-default ${bg} ${textColor} ${count > 0 ? "cursor-pointer shadow-sm" : ""}`}
-                      title={`${reg} × ${st} — ${count}건${isSpike ? " 🔺 급등" : ""}`}
-                    >
-                      {count === 0 ? "—" : count}
-                      {isSpike && <span className="ml-0.5 text-[10px]">🔺</span>}
-                    </button>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+        <tbody>
+          {data.regulation_tags.map((reg) => {
+            const chip = regChip(reg);
+            return (
+              <tr key={reg} style={{ cursor: "default" }}>
+                <td style={{ padding: "3px 4px", verticalAlign: "middle" }}>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: chip.color, lineHeight: 1.2 }}>{reg}</div>
+                </td>
+                {data.stakeholder_tags.map((st) => {
+                  const cell = data.cells.find((c) => c.regulation_tag === reg && c.stakeholder_tag === st);
+                  const count = cell?.count ?? 0;
+                  const isSpike = cell?.is_spike ?? false;
+                  const intensity = count / maxCount;
+
+                  let bg = T.grayBg;
+                  let labelColor = T.txt3;
+                  let labelWeight: string | number = 400;
+                  if (count > 0 && isSpike) {
+                    bg = T.redBg;
+                    labelColor = "#ff7e7e";
+                    labelWeight = 700;
+                  } else if (count > 0 && intensity > 0.6) {
+                    bg = T.greenBg;
+                    labelColor = T.green;
+                    labelWeight = 700;
+                  } else if (count > 0) {
+                    bg = chip.bg;
+                    labelColor = chip.color;
+                    labelWeight = 500;
+                  }
+
+                  return (
+                    <td key={st} style={{ padding: "3px 4px", textAlign: "center", verticalAlign: "middle" }}>
+                      <div
+                        role={count > 0 ? "button" : undefined}
+                        onClick={count > 0 ? () => onCellClick(reg, st, cell) : undefined}
+                        title={count > 0 ? `${reg} × ${st} — ${count}건${isSpike ? " 급등" : ""}` : undefined}
+                        style={{
+                          borderRadius: 6,
+                          padding: "5px 5px",
+                          textAlign: "center",
+                          cursor: count > 0 ? "pointer" : "default",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 1,
+                          minHeight: 36,
+                          justifyContent: "center",
+                          background: bg,
+                          transition: "transform 0.12s, box-shadow 0.12s",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (count > 0) {
+                            (e.currentTarget as HTMLElement).style.transform = "scale(1.04)";
+                            (e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 1.5px ${T.lime}`;
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLElement).style.transform = "scale(1)";
+                          (e.currentTarget as HTMLElement).style.boxShadow = "none";
+                        }}
+                      >
+                        <span style={{ fontSize: 9, fontWeight: labelWeight as number, color: labelColor, lineHeight: 1.2 }}>
+                          {count === 0 ? "—" : count}
+                          {isSpike ? " 🔺" : ""}
+                        </span>
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-// ── 서브 컴포넌트: Drawer ─────────────────────────────────────────────────
+// ── Detail Drawer ─────────────────────────────────────────────────────────
 function DetailDrawer({
   open,
   query,
@@ -383,172 +457,198 @@ function DetailDrawer({
   loading: boolean;
   onClose: () => void;
 }) {
-  const drawerRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    if (open) document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    if (open) document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
   }, [open, onClose]);
+
+  // 뱃지 타입 결정: stakeholder_tag 기반
+  const bMap: Record<string, { cls: string; label: string; bg: string; color: string }> = {
+    "기업":  { cls: "tag-c", label: "기업",  bg: T.blueBg,  color: T.blueTxt },
+    "정책":  { cls: "tag-p", label: "정책",  bg: T.greenBg, color: T.green },
+    "금융":  { cls: "tag-m", label: "금융",  bg: T.amberBg, color: T.amber },
+    "국내":  { cls: "tag-s", label: "국내",  bg: T.redBg,   color: T.red },
+  };
+  function artBadge(article: DetailArticle) {
+    const b = stakeholderBadge(article.stakeholder_tag);
+    return bMap[b.label] ?? { cls: "tag-s", label: b.label, bg: b.bg, color: b.color };
+  }
 
   return (
     <>
       {/* 오버레이 */}
-      <div
-        className={`fixed inset-0 z-40 bg-black transition-opacity ${open ? "opacity-30" : "pointer-events-none opacity-0"}`}
-        onClick={onClose}
-      />
+      {open && (
+        <div
+          onClick={onClose}
+          style={{
+            position: "fixed", inset: 0, zIndex: 40,
+            background: "rgba(0,0,0,0.5)",
+          }}
+        />
+      )}
 
-      {/* 슬라이딩 Drawer */}
+      {/* 슬라이딩 서랍 */}
       <div
-        ref={drawerRef}
-        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-[520px] flex-col bg-white shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: 0,
+          zIndex: 50,
+          height: "100%",
+          width: open ? 268 : 0,
+          overflow: "hidden",
+          background: T.bg1,
+          borderLeft: `1px solid ${T.border}`,
+          transition: "width 0.28s cubic-bezier(0.4,0,0.2,1)",
+          flexShrink: 0,
+        }}
       >
-        {/* 헤더 */}
-        <div className="flex shrink-0 items-start justify-between border-b border-slate-100 px-6 py-5">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest text-emeraldBrand">
-              Intelligence Detail
-            </p>
-            <h2 className="mt-1 text-base font-black text-navy">
-              {query?.label ?? "AI 인텔리전스 보고서"}
-            </h2>
-            {data && (
-              <p className="mt-0.5 text-xs text-slate-400">
-                {data.total}건 매칭
-                {query?.regulation && ` · ${query.regulation}`}
-                {query?.country && ` · ${query.country}`}
-                {query?.stakeholder && ` · ${query.stakeholder}`}
-              </p>
-            )}
-          </div>
+        <div
+          style={{
+            padding: "18px 14px",
+            width: 268,
+            overflowY: "auto",
+            height: "100%",
+          }}
+        >
+          {/* 닫기 버튼 */}
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-navy"
+            style={{
+              float: "right",
+              cursor: "pointer",
+              color: T.txt3,
+              fontSize: 15,
+              marginTop: 2,
+              background: "none",
+              border: "none",
+            }}
+            aria-label="닫기"
           >
-            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
+            ✕
           </button>
-        </div>
 
-        {/* 본문 */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {query && (
+            <>
+              {/* 배지 */}
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 9,
+                  fontWeight: 500,
+                  padding: "3px 8px",
+                  borderRadius: 10,
+                  marginBottom: 8,
+                  background: T.limeDim,
+                  color: T.lime,
+                }}
+              >
+                ⚡ 인텔리전스 보고서
+              </div>
+
+              <div style={{ fontSize: 14, fontWeight: 500, color: T.txt, lineHeight: 1.35, marginBottom: 3 }}>
+                {query.label}
+              </div>
+              {data && (
+                <div style={{ fontSize: 11, color: T.txt3, marginBottom: 14, lineHeight: 1.5 }}>
+                  {data.total}건 매칭
+                  {query.regulation && ` · ${query.regulation}`}
+                  {query.stakeholder && ` · ${query.stakeholder}`}
+                  {query.country && ` · ${query.country}`}
+                </div>
+              )}
+            </>
+          )}
+
           {loading && (
-            <div className="flex h-32 items-center justify-center">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-emeraldBrand border-t-transparent" />
-              <span className="ml-3 text-sm text-slate-400">AI 보고서 생성 중...</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 120, color: T.txt3, fontSize: 12 }}>
+              <span style={{ marginRight: 8 }}>⏳</span>AI 보고서 생성 중...
             </div>
           )}
 
           {!loading && (!data || data.articles.length === 0) && (
-            <div className="flex h-32 flex-col items-center justify-center gap-2 text-slate-400">
-              <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                <circle cx={12} cy={12} r={10} />
-                <path d="M12 8v4M12 16h.01" />
-              </svg>
-              <p className="text-sm">아직 처리된 인텔리전스 데이터가 없습니다.</p>
-              <p className="text-xs">LLM 파이프라인이 실행된 후 데이터가 표시됩니다.</p>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 120, color: T.txt3, fontSize: 11, gap: 6, textAlign: "center" }}>
+              <span style={{ fontSize: 24 }}>📭</span>
+              <p>LLM 파이프라인 실행 후</p>
+              <p>데이터가 표시됩니다.</p>
             </div>
           )}
 
-          {!loading && data && data.articles.length > 0 && (
-            <div className="space-y-6">
-              {data.articles.map((article, idx) => (
-                <div key={article.id} className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                  {/* 태그 행 */}
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <span className={`rounded px-2 py-0.5 text-[11px] font-black text-white ${REG_COLORS[article.regulation_tag as RegTag] ?? "bg-navy"}`}>
-                      {article.regulation_tag}
-                    </span>
-                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">
-                      {article.stakeholder_tag}
-                    </span>
-                    {article.source_name && (
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-400 ring-1 ring-slate-200">
-                        {article.source_name}
-                      </span>
-                    )}
-                    {article.created_at && (
-                      <span className="ml-auto font-mono text-[11px] text-slate-400">
-                        {formatDate(article.created_at)}
-                      </span>
-                    )}
+          {!loading && data && data.articles.map((article, idx) => {
+            const badge = artBadge(article);
+            return (
+              <div key={article.id} style={{ marginBottom: 18 }}>
+                {/* AI 3줄 요약 박스 (첫 번째 아티클) */}
+                {idx === 0 && article.ai_summary && (
+                  <div
+                    style={{
+                      background: "rgba(212,255,109,0.06)",
+                      border: `1px solid ${T.limeBorder}`,
+                      borderRadius: 8,
+                      padding: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div style={{ fontSize: 9, fontWeight: 500, color: T.lime, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                      ✨ AI 시장 동향 요약
+                    </div>
+                    <div style={{ fontSize: 11, color: "rgba(220,245,255,0.8)", lineHeight: 1.7 }}>
+                      {article.ai_summary.split("\n").filter(Boolean).map((line, i) => (
+                        <p key={i}>{line.startsWith("•") ? line : `• ${line}`}</p>
+                      ))}
+                    </div>
                   </div>
+                )}
 
-                  {/* 원문 제목 */}
-                  <h3 className="text-sm font-black leading-snug text-navy">
-                    {idx + 1}. {article.title}
-                  </h3>
-
-                  {/* AI 3줄 요약 */}
-                  {article.ai_summary && (
-                    <div className="mt-3 rounded-lg border border-emerald-100 bg-white p-3">
-                      <p className="mb-1.5 text-[11px] font-black uppercase tracking-widest text-emeraldBrand">
-                        AI 3줄 요약 보고서
-                      </p>
-                      <div className="space-y-1">
-                        {article.ai_summary
-                          .split("\n")
-                          .filter(Boolean)
-                          .map((line, i) => (
-                            <p key={i} className="text-sm leading-relaxed text-slate-700">
-                              {line.startsWith("•") ? line : `• ${line}`}
-                            </p>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 뉴스 타임라인 */}
-                  {article.timeline && (
-                    <div className="mt-3 rounded-lg bg-white p-3 ring-1 ring-slate-100">
-                      <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
-                        뉴스 타임라인
-                      </p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                        {article.timeline.phase && (
-                          <>
-                            <span className="font-bold text-slate-500">단계</span>
-                            <span className="font-bold text-navy">{article.timeline.phase}</span>
-                          </>
-                        )}
-                        {article.timeline.event_date && (
-                          <>
-                            <span className="font-bold text-slate-500">사건 일자</span>
-                            <span className="text-slate-600">{article.timeline.event_date}</span>
-                          </>
-                        )}
-                        {article.timeline.deadline && (
-                          <>
-                            <span className="font-bold text-slate-500">마감 기한</span>
-                            <span className="font-bold text-red-600">{article.timeline.deadline}</span>
-                          </>
-                        )}
-                        {article.timeline.key_actors && article.timeline.key_actors.length > 0 && (
-                          <>
-                            <span className="font-bold text-slate-500">핵심 주체</span>
-                            <span className="text-slate-600">
-                              {article.timeline.key_actors.join(", ")}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 본문 발췌 */}
-                  {article.excerpt && (
-                    <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-slate-400">
-                      {article.excerpt}
-                    </p>
-                  )}
+                {/* 타임라인 아이템 */}
+                <div
+                  style={{
+                    borderLeft: `1px solid ${idx === 0 ? T.lime : T.border2}`,
+                    paddingLeft: 10,
+                    paddingBottom: 10,
+                    position: "relative",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: "50%",
+                      background: idx === 0 ? T.lime : T.border2,
+                      position: "absolute",
+                      left: -3,
+                      top: 4,
+                    }}
+                  />
+                  <div style={{ fontSize: 9, color: T.txt3, marginBottom: 2 }}>
+                    {fmtDate(article.created_at) ?? ""}
+                  </div>
+                  <div style={{ fontSize: 11, color: T.txt, lineHeight: 1.5, marginBottom: 2 }}>
+                    {article.title}
+                  </div>
+                  <div style={{ fontSize: 9, color: T.txt3 }}>
+                    {article.source_name}
+                    <span
+                      style={{
+                        display: "inline-block",
+                        fontSize: 8,
+                        padding: "1px 5px",
+                        borderRadius: 5,
+                        marginLeft: 3,
+                        background: badge.bg,
+                        color: badge.color,
+                      }}
+                    >
+                      {badge.label}
+                    </span>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </>
@@ -558,29 +658,24 @@ function DetailDrawer({
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────
 export function IntelligencePanel() {
   const [selectedReg, setSelectedReg] = useState<string | null>(null);
-
   const [matrixData, setMatrixData] = useState<MatrixResponse | null>(null);
   const [matrixLoading, setMatrixLoading] = useState(true);
-
   const [hotspotData, setHotspotData] = useState<HotspotsResponse | null>(null);
   const [hotspotLoading, setHotspotLoading] = useState(true);
-
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerQuery, setDrawerQuery] = useState<DrawerQuery | null>(null);
   const [drawerData, setDrawerData] = useState<DetailResponse | null>(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
 
-  // ── 매트릭스 fetch ───────────────────────────────────────────────────────
   useEffect(() => {
     setMatrixLoading(true);
     fetch(`${API_BASE}/api/v1/intelligence/matrix`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setMatrixData(d))
+      .then(setMatrixData)
       .catch(() => setMatrixData(null))
       .finally(() => setMatrixLoading(false));
   }, []);
 
-  // ── 핫스팟 fetch (규제 필터 변경 시 리프레시) ─────────────────────────────
   useEffect(() => {
     setHotspotLoading(true);
     const url = selectedReg
@@ -588,47 +683,36 @@ export function IntelligencePanel() {
       : `${API_BASE}/api/v1/intelligence/hotspots?limit=20`;
     fetch(url)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setHotspotData(d))
+      .then(setHotspotData)
       .catch(() => setHotspotData(null))
       .finally(() => setHotspotLoading(false));
   }, [selectedReg]);
 
-  // ── Drawer 열기 (detail fetch) ────────────────────────────────────────────
-  const openDrawer = useCallback((query: DrawerQuery) => {
-    setDrawerQuery(query);
+  const openDrawer = useCallback((q: DrawerQuery) => {
+    setDrawerQuery(q);
     setDrawerOpen(true);
     setDrawerData(null);
     setDrawerLoading(true);
-
     const params = new URLSearchParams({ limit: "10" });
-    if (query.regulation) params.set("regulation", query.regulation);
-    if (query.country) params.set("country", query.country);
-    if (query.stakeholder) params.set("stakeholder", query.stakeholder);
-
+    if (q.regulation) params.set("regulation", q.regulation);
+    if (q.country) params.set("country", q.country);
+    if (q.stakeholder) params.set("stakeholder", q.stakeholder);
     fetch(`${API_BASE}/api/v1/intelligence/detail?${params}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setDrawerData(d))
+      .then(setDrawerData)
       .catch(() => setDrawerData(null))
       .finally(() => setDrawerLoading(false));
   }, []);
 
-  const closeDrawer = useCallback(() => {
-    setDrawerOpen(false);
-  }, []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
-  // ── 셀 클릭 핸들러 ───────────────────────────────────────────────────────
   const handleCellClick = useCallback(
-    (reg: string, st: string) => {
-      openDrawer({
-        regulation: reg,
-        stakeholder: st,
-        label: `${reg} × ${st}`,
-      });
+    (reg: string, st: string, _cell?: MatrixCell) => {
+      openDrawer({ regulation: reg, stakeholder: st, label: `${reg} × ${st}` });
     },
     [openDrawer]
   );
 
-  // ── 지도/바차트 국가 클릭 핸들러 ─────────────────────────────────────────
   const handleCountryClick = useCallback(
     (iso: string, label: string) => {
       openDrawer({
@@ -640,170 +724,319 @@ export function IntelligencePanel() {
     [openDrawer, selectedReg]
   );
 
-  // ── KPI 카드 데이터 계산 ─────────────────────────────────────────────────
-  const totalSignals =
-    matrixData?.cells.reduce((s, c) => s + c.count, 0) ?? null;
+  const totalSignals = matrixData?.cells.reduce((s, c) => s + c.count, 0) ?? null;
   const spikeCount = hotspotData?.spike_countries ?? null;
   const trackedCountries = hotspotData?.total_countries ?? null;
+  const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
 
   return (
-    <section className="space-y-5">
-      {/* 섹션 헤더 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emeraldBrand">
-            Intelligence Layer
-          </p>
-          <h2 className="mt-0.5 text-lg font-black text-navy">
-            글로벌 다차원 인텔리전스
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-400">
-            5대 규제 × 5대 이해관계자 · 전 세계 핫스팟 · DB 실시간 집계
-          </p>
-        </div>
+    <>
+      {/* 애니메이션 키프레임 */}
+      <style>{`
+        @keyframes hs-core { 0%,100%{r:4} 50%{r:6} }
+        @keyframes hs-mid  { 0%,100%{opacity:.5} 50%{opacity:.1} }
+        @keyframes hs-out  { 0%,100%{opacity:.25} 50%{opacity:0} }
+        @keyframes live-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+      `}</style>
 
-        {/* 규제 필터 버튼 */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedReg(null)}
-            className={`rounded-full px-3 py-1 text-xs font-bold transition ${
-              selectedReg === null
-                ? "bg-navy text-white shadow"
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-            }`}
-          >
-            전체
-          </button>
-          {REGULATION_TAGS.map((reg) => (
-            <button
-              key={reg}
-              onClick={() => setSelectedReg(selectedReg === reg ? null : reg)}
-              className={`rounded-full px-3 py-1 text-xs font-bold transition ${
-                selectedReg === reg
-                  ? `${REG_COLORS[reg]} text-white shadow`
-                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-              }`}
+      <div
+        style={{
+          display: "flex",
+          height: "100vh",
+          background: T.bg0,
+          fontFamily: "var(--font-sans, system-ui, sans-serif)",
+          color: T.txt,
+          overflow: "hidden",
+        }}
+      >
+        {/* ── 사이드바 ──────────────────────────────────────────────────── */}
+        <div
+          style={{
+            width: 196,
+            minWidth: 196,
+            background: T.bg1,
+            borderRight: `1px solid ${T.border}`,
+            display: "flex",
+            flexDirection: "column",
+            padding: "20px 0",
+          }}
+        >
+          {/* 로고 */}
+          <div style={{ padding: "0 16px 16px", borderBottom: `1px solid ${T.border}` }}>
+            <div
+              style={{
+                display: "inline-block",
+                fontSize: 9,
+                fontWeight: 500,
+                color: T.lime,
+                background: T.limeDim,
+                border: `1px solid ${T.limeBorder}`,
+                borderRadius: 4,
+                padding: "2px 6px",
+                marginBottom: 6,
+                letterSpacing: "0.06em",
+              }}
             >
-              {reg}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* KPI 카드 3종 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-bold text-slate-400">DB 누적 신호</p>
-          <p className="mt-2 text-2xl font-black text-navy">
-            {matrixLoading ? "—" : (totalSignals ?? 0)}
-            <span className="ml-0.5 text-sm font-bold text-slate-400">건</span>
-          </p>
-          <p className="mt-1 text-[11px] text-slate-400">규제×이해관계자 매트릭스 기준</p>
-        </div>
-        <div className="rounded-xl border border-orange-100 bg-orange-50 p-4 shadow-sm">
-          <p className="text-xs font-bold text-orange-400">급등 국가 (Spike)</p>
-          <p className="mt-2 text-2xl font-black text-orange-600">
-            {hotspotLoading ? "—" : (spikeCount ?? 0)}
-            <span className="ml-0.5 text-sm font-bold">개국</span>
-          </p>
-          <p className="mt-1 text-[11px] text-orange-400">7일 vs 28일 변동률 ≥100%</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-bold text-slate-400">감지 국가</p>
-          <p className="mt-2 text-2xl font-black text-emeraldBrand">
-            {hotspotLoading ? "—" : (trackedCountries ?? 0)}
-            <span className="ml-0.5 text-sm font-bold text-slate-400">개국</span>
-          </p>
-          <p className="mt-1 text-[11px] text-slate-400">
-            {selectedReg ? `${selectedReg} 기준` : "전체 규제 기준"}
-          </p>
-        </div>
-      </div>
-
-      {/* 매트릭스 + 핫스팟 */}
-      <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-
-        {/* 5×5 신호 매트릭스 */}
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <div>
-              <h3 className="text-sm font-black text-navy">이해관계자 × 규제 신호 매트릭스</h3>
-              <p className="mt-0.5 text-xs text-slate-400">
-                셀 클릭 → AI 요약 Drawer · 🔺 표시 = 평균 2배 이상 급등
-              </p>
+              PREMIUM B2B SOLUTION
             </div>
-            {matrixLoading && (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-emeraldBrand border-t-transparent" />
-            )}
-          </div>
-          <div className="p-4">
-            <SignalMatrix matrixData={matrixData} onCellClick={handleCellClick} />
-          </div>
-        </div>
-
-        {/* 핫스팟 바 차트 */}
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <div>
-              <h3 className="text-sm font-black text-navy">국가별 Volume Spike</h3>
-              <p className="mt-0.5 text-xs text-slate-400">
-                7일 vs 28일 평균 변동률 내림차순
-                {selectedReg && <span className="ml-1 font-bold text-emeraldBrand">· {selectedReg}</span>}
-              </p>
+            <div style={{ fontSize: 15, fontWeight: 500, color: T.txt, letterSpacing: "0.02em" }}>
+              IMPACT<span style={{ color: T.lime }}>ON</span>
             </div>
-            {hotspotLoading && (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-emeraldBrand border-t-transparent" />
-            )}
+            <div style={{ fontSize: 10, color: T.txt3, marginTop: 3, lineHeight: 1.4 }}>
+              ESG Intelligence<br />글로벌 규제 · 이해관계자 시그널
+            </div>
           </div>
-          <div className="p-4">
-            {hotspotData && hotspotData.hotspots.length > 0 ? (
-              <HotspotBarChart
-                hotspots={hotspotData.hotspots}
-                onCountryClick={handleCountryClick}
-              />
-            ) : (
-              <div className="flex h-32 flex-col items-center justify-center gap-1 text-slate-400">
-                <p className="text-sm">핫스팟 데이터 없음</p>
-                <p className="text-xs">LLM 파이프라인 실행 후 집계됩니다</p>
+
+          {/* 네비 */}
+          <div style={{ padding: "10px 8px", flex: 1 }}>
+            {[
+              { label: "메뉴", type: "label" },
+              { icon: "⊞", label: "종합 대시보드", active: true },
+              { icon: "◎", label: "맞춤 규제 진단" },
+              { icon: "☰", label: "리포트 추출" },
+              { label: "설정", type: "label" },
+              { icon: "🔔", label: "알림 설정" },
+              { icon: "⚙", label: "환경설정" },
+            ].map((item, i) => {
+              if (item.type === "label") {
+                return (
+                  <div key={i} style={{ fontSize: 9, color: T.txt3, padding: "10px 8px 4px", letterSpacing: "0.07em", textTransform: "uppercase" }}>
+                    {item.label}
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 9,
+                    padding: "7px 9px",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    color: item.active ? T.lime : T.txt2,
+                    marginBottom: 1,
+                    background: item.active ? T.bg3 : "transparent",
+                  }}
+                >
+                  <span style={{ fontSize: 15, color: item.active ? T.lime : T.txt2 }}>{item.icon}</span>
+                  {item.label}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 사용자 */}
+          <div style={{ padding: "10px 8px 0", borderTop: `1px solid ${T.border}`, marginTop: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px" }}>
+              <div
+                style={{
+                  width: 26, height: 26, borderRadius: "50%",
+                  background: T.limeDim, display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: 10, fontWeight: 500,
+                  color: T.lime, border: `1px solid ${T.limeBorder}`,
+                  flexShrink: 0,
+                }}
+              >
+                IM
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 글로벌 핫스팟 맵 */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <div>
-            <h3 className="text-sm font-black text-navy">글로벌 핫스팟 지도</h3>
-            <p className="mt-0.5 text-xs text-slate-400">
-              국가 점 클릭 → AI 인텔리전스 Drawer · 주황 = Spike 급등
-              {selectedReg && <span className="ml-1 font-bold text-emeraldBrand">· {selectedReg} 필터 적용 중</span>}
-            </p>
-          </div>
-        </div>
-        <div className="p-4">
-          {hotspotData && hotspotData.hotspots.length > 0 ? (
-            <HotspotMap
-              hotspots={hotspotData.hotspots}
-              onCountryClick={handleCountryClick}
-            />
-          ) : (
-            <div className="flex h-40 items-center justify-center rounded-xl bg-[#0f1a2e] text-sm text-slate-500">
-              핫스팟 데이터 없음 — LLM 파이프라인 실행 후 표시됩니다
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 500, color: T.txt }}>ImpactON</div>
+                <div style={{ fontSize: 9, color: T.txt3 }}>ESG·공시 팀</div>
+              </div>
             </div>
-          )}
+          </div>
         </div>
-      </div>
 
-      {/* 슬라이딩 Drawer */}
-      <DetailDrawer
-        open={drawerOpen}
-        query={drawerQuery}
-        data={drawerData}
-        loading={drawerLoading}
-        onClose={closeDrawer}
-      />
-    </section>
+        {/* ── 메인 콘텐츠 ────────────────────────────────────────────────── */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+            minWidth: 0,
+          }}
+        >
+          {/* 탑바 */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 500, color: T.txt, margin: 0 }}>
+                오늘의 이해관계자 시그널 현황
+              </h2>
+              <p style={{ fontSize: 11, color: T.txt3, marginTop: 3, lineHeight: 1.5, maxWidth: 380 }}>
+                "로펌은 법조문을 독해하지만, 임팩트온은 우리 기업을 둘러싼 시장의 역동적 맥박을 봅니다."
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.green, animation: "live-pulse 2s ease-in-out infinite" }} />
+              <div
+                style={{
+                  fontSize: 11, color: T.txt3, background: T.bg2,
+                  padding: "4px 10px", borderRadius: 20, border: `1px solid ${T.border}`, whiteSpace: "nowrap",
+                }}
+              >
+                {today}
+              </div>
+            </div>
+          </div>
+
+          {/* KPI 카드 3종 */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+            {/* DB 누적 신호 */}
+            <div style={{ background: T.bg1, border: `1px solid ${T.border}`, borderRadius: 12, padding: "13px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, background: T.redBg, color: "#ff7e7e" }}>⚡</div>
+                <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 10, fontWeight: 500, background: T.redBg, color: "#ff7e7e" }}>
+                  {matrixLoading ? "..." : `${totalSignals ?? 0}건 집계`}
+                </span>
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 500, color: T.txt }}>{matrixLoading ? "—" : (totalSignals ?? 0)}</div>
+              <div style={{ fontSize: 11, color: T.txt3, marginTop: 2 }}>DB 누적 신호 (규제×이해관계자)</div>
+            </div>
+
+            {/* 급등 국가 */}
+            <div style={{ background: T.bg1, border: `1px solid ${T.border}`, borderRadius: 12, padding: "13px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, background: T.amberBg, color: "#f5c84a" }}>📈</div>
+                <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 10, fontWeight: 500, background: T.amberBg, color: "#f5c84a" }}>
+                  Spike ≥100%
+                </span>
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 500, color: T.txt }}>{hotspotLoading ? "—" : (spikeCount ?? 0)}</div>
+              <div style={{ fontSize: 11, color: T.txt3, marginTop: 2 }}>급등 국가 (7일 vs 28일)</div>
+            </div>
+
+            {/* 감지 국가 */}
+            <div style={{ background: T.bg1, border: `1px solid ${T.border}`, borderRadius: 12, padding: "13px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, background: T.limeDim, color: T.lime }}>🌐</div>
+                <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 10, fontWeight: 500, background: T.limeDim, color: T.lime }}>
+                  {selectedReg ?? "전체 규제"}
+                </span>
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 500, color: T.txt }}>{hotspotLoading ? "—" : (trackedCountries ?? 0)}</div>
+              <div style={{ fontSize: 11, color: T.txt3, marginTop: 2 }}>감지 국가</div>
+            </div>
+          </div>
+
+          {/* 규제 필터 탭 */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button
+              onClick={() => setSelectedReg(null)}
+              style={{
+                padding: "4px 12px", borderRadius: 20, fontSize: 10, fontWeight: 500,
+                cursor: "pointer", border: "none",
+                background: selectedReg === null ? T.lime : T.bg2,
+                color: selectedReg === null ? T.bg0 : T.txt2,
+              }}
+            >전체</button>
+            {(matrixData?.regulation_tags ?? []).map((reg) => {
+              const chip = regChip(reg);
+              return (
+                <button
+                  key={reg}
+                  onClick={() => setSelectedReg(selectedReg === reg ? null : reg)}
+                  style={{
+                    padding: "4px 12px", borderRadius: 20, fontSize: 10, fontWeight: 500,
+                    cursor: "pointer", border: "none",
+                    background: selectedReg === reg ? chip.color : T.bg2,
+                    color: selectedReg === reg ? T.bg0 : T.txt2,
+                  }}
+                >{reg}</button>
+              );
+            })}
+          </div>
+
+          {/* 트윈 패널 (매트릭스 좌 + 지도+바차트 우) */}
+          <div style={{ display: "grid", gridTemplateColumns: "55% 45%", gap: 12, flex: 1, minHeight: 0 }}>
+
+            {/* 매트릭스 패널 */}
+            <div
+              style={{
+                background: T.bg1,
+                border: `1px solid ${T.border}`,
+                borderRadius: 12,
+                padding: 14,
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 0,
+                overflow: "hidden",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: T.txt }}>이해관계자 × 규제 시그널 매트릭스</span>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {[
+                    { bg: "#ff7e7e", label: "즉각 대응" },
+                    { bg: "#f5c84a", label: "모니터링" },
+                    { bg: T.green, label: "기회" },
+                    { bg: T.blueTxt, label: "주목" },
+                  ].map((l) => (
+                    <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: T.txt3 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: 1, background: l.bg }} />
+                      {l.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {matrixLoading
+                ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: T.txt3, fontSize: 12 }}>⏳ 로딩 중...</div>
+                : <SignalMatrix data={matrixData} onCellClick={handleCellClick} />
+              }
+            </div>
+
+            {/* 지도 + 바차트 패널 */}
+            <div
+              style={{
+                background: T.bg1,
+                border: `1px solid ${T.border}`,
+                borderRadius: 12,
+                padding: 14,
+                display: "flex",
+                flexDirection: "column",
+                gap: 0,
+                minHeight: 0,
+                overflow: "hidden",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: T.txt }}>글로벌 공급망 핫스팟 레이더</span>
+                <span style={{ fontSize: 9, color: T.txt3 }}>국가 점 클릭 → 상세 분석</span>
+              </div>
+
+              {hotspotLoading ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: T.txt3, fontSize: 12 }}>⏳ 로딩 중...</div>
+              ) : hotspotData && hotspotData.hotspots.length > 0 ? (
+                <>
+                  <HotspotMap hotspots={hotspotData.hotspots} onClick={handleCountryClick} />
+                  <BarChart hotspots={hotspotData.hotspots} onClick={handleCountryClick} />
+                </>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, color: T.txt3, fontSize: 11, textAlign: "center" }}>
+                  <div>
+                    <p>핫스팟 데이터 없음</p>
+                    <p style={{ marginTop: 4, fontSize: 10 }}>LLM 파이프라인 실행 후 집계됩니다</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── 슬라이딩 Drawer ────────────────────────────────────────────── */}
+        <DetailDrawer
+          open={drawerOpen}
+          query={drawerQuery}
+          data={drawerData}
+          loading={drawerLoading}
+          onClose={closeDrawer}
+        />
+      </div>
+    </>
   );
 }
