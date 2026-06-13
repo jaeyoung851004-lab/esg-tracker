@@ -19,6 +19,8 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from sqlalchemy import func
+
 from .hotspot_engine import (
     BASELINE_WINDOW_DAYS,
     RECENT_DAYS,
@@ -370,6 +372,202 @@ def get_newsroom(
         regulation_tags=_REGULATION_TAGS,
         stakeholder_tags=_STAKEHOLDER_TAGS,
     )
+
+
+@router.get("/kpi")
+def get_kpi() -> dict:
+    """3대 인텔리전스 KPI: 오늘의 대표 시그널 / 급증 규제 / 주도 이해관계자."""
+    now = datetime.now(UTC)
+    week_ago = now - timedelta(days=7)
+    two_weeks_ago = now - timedelta(days=14)
+
+    with Session(_engine) as session:
+        # ── 1. 오늘의 대표 시그널 ─────────────────────────────────────────
+        top_pair = (
+            session.query(RawArticle, TaggedArticle)
+            .join(TaggedArticle, TaggedArticle.article_id == RawArticle.id)
+            .filter(
+                RawArticle.created_at >= week_ago,
+                TaggedArticle.regulation_tag != "unclassified",
+                TaggedArticle.stakeholder_tag != "unclassified",
+                TaggedArticle.tagging_confidence >= 0.7,
+            )
+            .order_by(TaggedArticle.tagging_confidence.desc(), RawArticle.created_at.desc())
+            .first()
+        )
+
+        # ── 2. 급증 규제 ─────────────────────────────────────────────────
+        recent_counts: dict[str, int] = dict(
+            session.query(TaggedArticle.regulation_tag, func.count(TaggedArticle.id))
+            .join(RawArticle, TaggedArticle.article_id == RawArticle.id)
+            .filter(RawArticle.created_at >= week_ago, TaggedArticle.regulation_tag != "unclassified")
+            .group_by(TaggedArticle.regulation_tag)
+            .all()
+        )
+        prev_counts: dict[str, int] = dict(
+            session.query(TaggedArticle.regulation_tag, func.count(TaggedArticle.id))
+            .join(RawArticle, TaggedArticle.article_id == RawArticle.id)
+            .filter(
+                RawArticle.created_at >= two_weeks_ago,
+                RawArticle.created_at < week_ago,
+                TaggedArticle.regulation_tag != "unclassified",
+            )
+            .group_by(TaggedArticle.regulation_tag)
+            .all()
+        )
+        best_reg: str | None = None
+        best_surge = 0.0
+        for reg, cnt in recent_counts.items():
+            prev = prev_counts.get(reg, 0)
+            surge = (cnt - prev) / max(prev, 1) * 100 if prev else (999.0 if cnt else 0.0)
+            if surge > best_surge:
+                best_surge, best_reg = surge, reg
+
+        # 급증 규제의 주요 국가 (top 3, ISO 변환)
+        surge_countries: list[str] = []
+        if best_reg:
+            country_rows = (
+                session.query(RawArticle.source_name, func.count(RawArticle.id))
+                .join(TaggedArticle, TaggedArticle.article_id == RawArticle.id)
+                .filter(RawArticle.created_at >= week_ago, TaggedArticle.regulation_tag == best_reg)
+                .group_by(RawArticle.source_name)
+                .order_by(func.count(RawArticle.id).desc())
+                .limit(10)
+                .all()
+            )
+            seen: set[str] = set()
+            for sname, _ in country_rows:
+                iso = source_name_to_iso(sname or "")
+                if iso and iso not in seen and iso not in ("ZZ", ""):
+                    seen.add(iso)
+                    name = iso_to_display_name(iso)
+                    if name and name != iso:
+                        surge_countries.append(name)
+                    if len(surge_countries) >= 3:
+                        break
+
+        # ── 3. 주도 이해관계자 ────────────────────────────────────────────
+        st_rows = (
+            session.query(TaggedArticle.stakeholder_tag, func.count(TaggedArticle.id))
+            .join(RawArticle, TaggedArticle.article_id == RawArticle.id)
+            .filter(RawArticle.created_at >= week_ago, TaggedArticle.stakeholder_tag != "unclassified")
+            .group_by(TaggedArticle.stakeholder_tag)
+            .all()
+        )
+        st_total = sum(c for _, c in st_rows)
+        leading_st: str | None = None
+        leading_cnt = 0
+        for st, cnt in sorted(st_rows, key=lambda x: x[1], reverse=True):
+            leading_st, leading_cnt = st, cnt
+            break
+
+        leading_regs: list[str] = []
+        if leading_st:
+            reg_rows = (
+                session.query(TaggedArticle.regulation_tag, func.count(TaggedArticle.id))
+                .join(RawArticle, TaggedArticle.article_id == RawArticle.id)
+                .filter(
+                    RawArticle.created_at >= week_ago,
+                    TaggedArticle.stakeholder_tag == leading_st,
+                    TaggedArticle.regulation_tag != "unclassified",
+                )
+                .group_by(TaggedArticle.regulation_tag)
+                .order_by(func.count(TaggedArticle.id).desc())
+                .limit(3)
+                .all()
+            )
+            leading_regs = [r for r, _ in reg_rows]
+
+    top_signal_data: dict | None = None
+    if top_pair:
+        raw, tagged = top_pair
+        top_signal_data = {
+            "title": raw.title or "",
+            "source": raw.source_name or "",
+            "regulation": tagged.regulation_tag or "",
+            "stakeholder": tagged.stakeholder_tag or "",
+            "date": raw.created_at.strftime("%Y.%m.%d") if raw.created_at else "",
+            "confidence": round(tagged.tagging_confidence or 0, 3),
+        }
+
+    return {
+        "generated_at": _now_iso(),
+        "top_signal": top_signal_data,
+        "surging_regulation": {
+            "regulation": best_reg,
+            "surge_pct": round(best_surge) if best_surge < 999 else None,
+            "is_new": best_surge >= 999,
+            "recent_count": recent_counts.get(best_reg, 0) if best_reg else 0,
+            "prev_count": prev_counts.get(best_reg, 0) if best_reg else 0,
+            "top_countries": surge_countries,
+        },
+        "leading_stakeholder": {
+            "stakeholder": leading_st,
+            "pct": round(leading_cnt / max(st_total, 1) * 100),
+            "count": leading_cnt,
+            "top_regulations": leading_regs,
+        },
+    }
+
+
+@router.get("/regulation-health")
+def regulation_health(
+    days: int = Query(default=30, ge=1, le=365, description="진단 기간(일)"),
+) -> dict:
+    """규제별 수집·태깅·매트릭스 품질 진단 (작업 4, 5)."""
+    now = datetime.now(UTC)
+    since = now - timedelta(days=days)
+
+    with Session(_engine) as session:
+        saved_counts: dict[str, int] = dict(
+            session.query(TaggedArticle.regulation_tag, func.count(TaggedArticle.id))
+            .join(RawArticle, TaggedArticle.article_id == RawArticle.id)
+            .filter(RawArticle.created_at >= since)
+            .group_by(TaggedArticle.regulation_tag)
+            .all()
+        )
+        high_conf_counts: dict[str, int] = dict(
+            session.query(TaggedArticle.regulation_tag, func.count(TaggedArticle.id))
+            .join(RawArticle, TaggedArticle.article_id == RawArticle.id)
+            .filter(RawArticle.created_at >= since, TaggedArticle.tagging_confidence >= 0.8)
+            .group_by(TaggedArticle.regulation_tag)
+            .all()
+        )
+        matrix_counts: dict[str, int] = dict(
+            session.query(TaggedArticle.regulation_tag, func.count(TaggedArticle.id))
+            .join(RawArticle, TaggedArticle.article_id == RawArticle.id)
+            .filter(
+                RawArticle.created_at >= since,
+                TaggedArticle.regulation_tag != "unclassified",
+                TaggedArticle.stakeholder_tag != "unclassified",
+            )
+            .group_by(TaggedArticle.regulation_tag)
+            .all()
+        )
+
+    total = sum(saved_counts.values())
+    unclassified = saved_counts.get("unclassified", 0)
+
+    regs_report = []
+    for reg in _REGULATION_TAGS:
+        saved = saved_counts.get(reg, 0)
+        regs_report.append({
+            "regulation": reg,
+            "keyword_count": len(REGULATION_KEYWORDS.get(reg, [])),
+            "saved_count": saved,
+            "high_confidence_count": high_conf_counts.get(reg, 0),
+            "matrix_count": matrix_counts.get(reg, 0),
+            "health": "ok" if saved >= 5 else ("low" if saved > 0 else "zero"),
+        })
+
+    return {
+        "generated_at": _now_iso(),
+        "days": days,
+        "total_tagged": total,
+        "unclassified_count": unclassified,
+        "unclassified_pct": round(unclassified / max(total, 1) * 100, 1),
+        "regulations": regs_report,
+    }
 
 
 @router.post("/reprocess")

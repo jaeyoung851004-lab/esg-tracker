@@ -176,34 +176,9 @@ REGULATION_KEYWORDS: dict[str, list[str]] = {
     ],
 }
 
-# ── 가로축: 이해관계자 키워드 ─────────────────────────────────────────────
+# ── 가로축: 이해관계자 키워드 (6대 체계) ─────────────────────────────────
 STAKEHOLDER_KEYWORDS: dict[str, list[str]] = {
-    "경쟁사": [
-        # 글로벌 대기업
-        "samsung", "lg", "hyundai", "sk group", "posco",
-        "volkswagen", "bmw", "mercedes", "toyota", "ford", "gm", "tesla",
-        "apple", "microsoft", "amazon", "google", "meta", "nvidia",
-        "basf", "shell", "bp", "totalenergies", "equinor",
-        "catl", "byd", "panasonic", "abb",
-        "unilever", "nestle", "henkel",
-        "arcelormittal", "thyssenkrupp", "nippon steel",
-        "manufacturer", "producer", "corporation",
-        "competitor", "corporate strategy",
-        # 한글
-        "삼성", "현대", "기업 대응", "제조사",
-    ],
-    "평가기관": [
-        "msci", "sustainalytics", "s&p global",
-        "moody's", "fitch", "ftse russell",
-        "cdp", "gri", "sasb", "tcfd", "sbti",
-        "efrag", "issb", "ifrs foundation",
-        "iso standard", "rating agency", "esg rating", "esg score",
-        "certification body", "benchmark", "reporting standard",
-        "accreditation", "third-party verification", "assurance provider",
-        # 한글
-        "평가기관", "인증기관", "평가", "기준 제정",
-    ],
-    "정부당국": [
+    "규제기관/정부": [
         "european commission", "european parliament",
         "council of the eu", "eu council",
         "ministry", "minister", "government", "parliament",
@@ -211,11 +186,41 @@ STAKEHOLDER_KEYWORDS: dict[str, list[str]] = {
         "agency", "administration", "department",
         "policy maker", "lawmaker", "legislator",
         "sec", "epa", "산업부", "환경부", "금융위",
-        "regulation", "directive", "law", "legislation",
-        "policy", "rule", "compliance requirement", "enforcement",
+        "directive", "law", "legislation",
+        "compliance requirement", "enforcement",
         "mandate", "obligation", "implementation",
+        "carb", "california air resources board",
+        "international maritime organization",
+        "efrag", "esma", "eba", "eu taxonomy",
         # 한글
         "정부", "규제당국", "의회", "정책", "법안", "규제", "입법",
+        "규제기관",
+    ],
+    "기업": [
+        "samsung", "lg", "hyundai", "sk group", "posco",
+        "volkswagen", "bmw", "mercedes", "toyota", "ford", "gm", "tesla",
+        "apple", "microsoft", "amazon", "google", "meta", "nvidia",
+        "basf", "shell", "bp", "totalenergies", "equinor",
+        "catl", "byd", "panasonic", "abb",
+        "unilever", "nestle", "henkel",
+        "arcelormittal", "thyssenkrupp", "nippon steel",
+        "honda", "stellantis", "renault", "volvo",
+        "manufacturer", "producer", "corporation", "company",
+        "corporate strategy", "competitor",
+        # 한글
+        "삼성", "현대", "기업 대응", "제조사", "기업",
+    ],
+    "산업단체": [
+        "eurometaux", "acea", "plastics europe", "businesseurope",
+        "industryeurope", "trade association", "industry association",
+        "industry group", "trade group", "federation",
+        "chamber of commerce", "business federation",
+        "industry lobby", "industrial association",
+        "eurelectric", "cembureau", "eurofer", "cefic",
+        "auto alliance", "semiconductor industry association",
+        "businesseurope", "orgalim",
+        # 한글
+        "산업단체", "무역협회", "업종단체", "경제단체", "협회",
     ],
     "기관투자자": [
         "blackrock", "vanguard", "state street", "fidelity",
@@ -241,9 +246,27 @@ STAKEHOLDER_KEYWORDS: dict[str, list[str]] = {
         "ngo", "civil society", "advocacy group",
         "environmental group", "environmental organization",
         "activist", "campaign", "protest", "petition",
-        "nonprofit", "charity", "watchdog", "think tank",
+        "nonprofit", "charity", "watchdog",
         # 한글
         "시민단체", "환경단체", "그린피스", "비정부기구", "시민사회", "캠페인",
+    ],
+    "전문가·로펌": [
+        "white & case", "baker mckenzie", "hogan lovells", "freshfields",
+        "latham & watkins", "clifford chance", "linklaters", "allen & overy",
+        "law firm", "legal counsel", "legal advisory", "attorney",
+        "kpmg", "pwc", "deloitte", "ernst & young", "mckinsey", "bcg",
+        "consultant", "consultancy", "advisory firm",
+        "expert", "analyst", "researcher", "professor", "think tank",
+        "msci", "sustainalytics", "s&p global",
+        "moody's", "fitch", "ftse russell",
+        "cdp", "gri", "sasb", "tcfd", "sbti",
+        "efrag", "issb", "ifrs foundation",
+        "iso standard", "rating agency", "esg rating", "esg score",
+        "certification body", "benchmark", "reporting standard",
+        "accreditation", "third-party verification", "assurance provider",
+        # 한글
+        "평가기관", "인증기관", "기준 제정",
+        "로펌", "법률사무소", "컨설팅", "전문가",
     ],
 }
 

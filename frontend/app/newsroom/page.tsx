@@ -39,11 +39,16 @@ const REG_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 const ST_BADGE: Record<string, { bg: string; color: string }> = {
-  "경쟁사":    { bg: "rgba(77,157,224,0.18)",  color: "#6db3e8" },
-  "평가기관":  { bg: "rgba(139,92,246,0.18)",  color: "#a78bfa" },
-  "정부당국":  { bg: "rgba(61,214,140,0.15)",  color: "#3dd68c" },
-  "기관투자자":{ bg: "rgba(240,180,41,0.18)",  color: "#f0b429" },
-  "시민단체":  { bg: "rgba(255,95,95,0.15)",   color: "#ff7e7e" },
+  "규제기관/정부": { bg: "rgba(61,214,140,0.15)",   color: "#3dd68c" },
+  "기업":          { bg: "rgba(77,157,224,0.18)",   color: "#6db3e8" },
+  "산업단체":      { bg: "rgba(251,146,60,0.15)",   color: "#fb923c" },
+  "기관투자자":    { bg: "rgba(240,180,41,0.18)",   color: "#f0b429" },
+  "시민단체":      { bg: "rgba(255,95,95,0.15)",    color: "#ff7e7e" },
+  "전문가·로펌":   { bg: "rgba(139,92,246,0.18)",   color: "#a78bfa" },
+  // 이전 레거시 키 호환 (재태깅 전 기존 DB 기사 표시)
+  "경쟁사":        { bg: "rgba(77,157,224,0.18)",   color: "#6db3e8" },
+  "평가기관":      { bg: "rgba(139,92,246,0.18)",   color: "#a78bfa" },
+  "정부당국":      { bg: "rgba(61,214,140,0.15)",   color: "#3dd68c" },
 };
 
 interface NRArticle {
